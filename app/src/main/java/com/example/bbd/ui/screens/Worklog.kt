@@ -36,7 +36,6 @@ import com.example.bbd.ui.HeaderRight
 import com.example.bbd.ui.MovementRow
 import com.example.bbd.ui.Nav
 import com.example.bbd.ui.Screen
-import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.T
 
@@ -62,7 +61,8 @@ fun WorklogScreen(nav: Nav) {
         SearchField(q, { q = it }, "부품명 또는 코드", showScan = false)
         Spacer(Modifier.size(12.dp))
 
-        // 필터 칩
+        // 필터 칩 — 칩 카운트는 30일 전체 요약(WORKLOG_SUMMARY) 기준(디자인 핸드오프 명세).
+        // 아래 목록과 "총 N건"은 현재 시드된 샘플 이동만 표시(운영에선 API가 30일치 전부 반환).
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             WChip("전체", null, s.total, filter == "all") { filter = "all" }
             WChip("입고", "arrowDn", s.inN, filter == "in") { filter = "in" }

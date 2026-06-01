@@ -51,7 +51,6 @@ import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.topBorder
 import com.example.bbd.ui.theme.Mono
-import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
 
 private data class PrMeta(val bg: Color, val fg: Color, val dot: Color)
@@ -129,7 +128,10 @@ fun OrderScreen(nav: Nav) {
             }
         }
 
-        CreateSheet(open = create, onClose = { create = false }) { newPr ->
+        CreateSheet(open = create, onClose = { create = false }) { draft ->
+            // 기존 발주 번호 최댓값 + 1 → 시드/재제출과 충돌 없는 고유 ID
+            val maxN = list.mapNotNull { it.id.substringAfterLast('-').toIntOrNull() }.maxOrNull() ?: 42
+            val newPr = draft.copy(id = "PR-2026-%04d".format(maxN + 1))
             list = listOf(newPr) + list
             create = false
             tab = "open"
@@ -274,9 +276,8 @@ private fun androidx.compose.foundation.layout.BoxScope.CreateSheet(open: Boolea
 
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.blue).clickable {
-                    val n = (43..92).random()
                     onSubmit(
-                        Pr("PR-2026-%04d".format(n), part.sku, part.name, qty, part.unit, PrStatus.REQUESTED, reason, "2026-05-22", "15:20", Seed.USER.name, "본사 승인 대기 중"),
+                        Pr("", part.sku, part.name, qty, part.unit, PrStatus.REQUESTED, reason, "2026-05-22", "15:20", Seed.USER.name, "본사 승인 대기 중"),
                     )
                     qty = 20; reason = "안전재고 미달"
                 }.padding(vertical = 16.dp),

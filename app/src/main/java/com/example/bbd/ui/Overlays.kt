@@ -9,6 +9,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -47,7 +48,7 @@ fun BoxScope.SheetHost(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     AnimatedVisibility(open, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxSize().background(T.scrim).tapNoRipple(onClose))
+        Box(Modifier.fillMaxSize().background(T.scrim).clickable(interactionSource = null, indication = null, onClick = onClose))
     }
     AnimatedVisibility(
         open,
@@ -84,7 +85,7 @@ fun BoxScope.ModalHost(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     AnimatedVisibility(open, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxSize().background(T.scrimModal).tapNoRipple(onClose))
+        Box(Modifier.fillMaxSize().background(T.scrimModal).clickable(interactionSource = null, indication = null, onClick = onClose))
     }
     AnimatedVisibility(
         open,
