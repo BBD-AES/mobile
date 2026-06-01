@@ -1,34 +1,23 @@
 package com.example.bbd.ui.theme
 
-import androidx.compose.material3.Typography
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
+import com.example.bbd.R
 
-// Set of Material typography styles to start with
-val Typography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    )
-    /* Other default text styles to override
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
-    )
-    */
+/** UI 기본 글꼴 — Pretendard (한글 우선). */
+val Pretendard = FontFamily(
+    Font(R.font.pretendard_regular, FontWeight.Normal),
+    Font(R.font.pretendard_medium, FontWeight.Medium),
+    Font(R.font.pretendard_semibold, FontWeight.SemiBold),
+    Font(R.font.pretendard_bold, FontWeight.Bold),
+    Font(R.font.pretendard_extrabold, FontWeight.ExtraBold),
+)
+
+/** 코드·숫자용 글꼴 — JetBrains Mono. SKU·사번·타임스탬프·수량 표기. */
+val Mono = FontFamily(
+    Font(R.font.jetbrainsmono_medium, FontWeight.Medium),
+    Font(R.font.jetbrainsmono_semibold, FontWeight.SemiBold),
+    Font(R.font.jetbrainsmono_bold, FontWeight.Bold),
+    Font(R.font.jetbrainsmono_extrabold, FontWeight.ExtraBold),
 )
