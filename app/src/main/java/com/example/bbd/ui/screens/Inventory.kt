@@ -65,11 +65,11 @@ import com.example.bbd.ui.state.LoadingRows
 
 @Composable
 fun InventoryScreen(nav: Nav) {
-    if (BuildConfig.USE_API) InventoryScreenApi(nav) else InventoryBody(nav, Seed.PARTS, Seed.INV_SUMMARY)
+    if (BuildConfig.USE_API) InventoryScreenApi(nav) else InventoryBody(nav, Seed.PARTS, Seed.INV_SUMMARY, Seed.CATEGORIES)
 }
 
 @Composable
-private fun InventoryBody(nav: Nav, parts: List<Part>, summary: InvSummary) {
+private fun InventoryBody(nav: Nav, parts: List<Part>, summary: InvSummary, categories: List<String>) {
     var q by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("all") }
     var sel by remember { mutableStateOf<Part?>(null) }
@@ -110,7 +110,7 @@ private fun InventoryBody(nav: Nav, parts: List<Part>, summary: InvSummary) {
                 Spacer(Modifier.size(14.dp))
 
                 // 필터 칩
-                FilterChips(filter, s) { filter = it }
+                FilterChips(filter, s, categories) { filter = it }
                 Spacer(Modifier.size(14.dp))
 
                 // 리스트
@@ -173,13 +173,13 @@ private fun Modifier.onFocusChangedCompat(cb: (Boolean) -> Unit): Modifier =
     this.onFocusChanged { cb(it.isFocused) }
 
 @Composable
-private fun FilterChips(filter: String, s: com.example.bbd.data.InvSummary, onPick: (String) -> Unit) {
+private fun FilterChips(filter: String, s: com.example.bbd.data.InvSummary, categories: List<String>, onPick: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
         Chip("전체", filter == "all", count = s.total) { onPick("all") }
         Chip("부족", filter == "부족", count = s.short, icon = "alert", iconColor = T.blue) { onPick("부족") }
         Chip("없음", filter == "없음", count = s.none, icon = "ban", iconColor = T.red) { onPick("없음") }
         Chip("정상", filter == "정상", count = s.ok, icon = "check", iconColor = T.ink3) { onPick("정상") }
-        Seed.CATEGORIES.forEach { c ->
+        categories.forEach { c ->
             Chip(c, filter == c) { onPick(c) }
         }
     }
@@ -322,7 +322,7 @@ private fun InventoryScreenApi(nav: Nav) {
         value = repo.branchStocks(Seed.USER.warehouse)
     }
     when (val st = state) {
-        is UiState.Success -> InventoryBody(nav, st.data, summaryOf(st.data))
+        is UiState.Success -> InventoryBody(nav, st.data, summaryOf(st.data), st.data.map { it.cat }.filter { it.isNotBlank() }.distinct())
         else -> Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().background(T.bg)) {
                 Header(title = "재고 조회", back = true, right = HeaderRight.BELL, onBack = { nav.tab("home") })

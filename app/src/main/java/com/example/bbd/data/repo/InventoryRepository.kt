@@ -24,11 +24,14 @@ class InventoryRepository(
             try {
                 val all = mutableListOf<StockItemDto>()
                 var page = 0
-                while (page < MAX_PAGES) {
+                var totalPages = 1
+                // 백엔드 totalPages 로 완전 종료(매직 캡으로 무음 절단하지 않음).
+                while (page < totalPages) {
                     val resp = api.stocks(warehouseCode = warehouseCode, page = page, size = PAGE_SIZE)
                     all += resp.content
+                    totalPages = resp.totalPages
+                    if (resp.content.isEmpty()) break
                     page++
-                    if (page >= resp.totalPages || resp.content.isEmpty()) break
                 }
                 UiState.Success(all.map { it.toPart() })
             } catch (c: CancellationException) {
@@ -52,6 +55,5 @@ class InventoryRepository(
 
     private companion object {
         const val PAGE_SIZE = 100
-        const val MAX_PAGES = 20
     }
 }
