@@ -94,6 +94,9 @@ dependencies {
     // 인증 (Keycloak OIDC · AppAuth)
     implementation(libs.appauth)
 
+    // 바코드/QR 스캔 (ZXing)
+    implementation(libs.zxing.embedded)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
