@@ -46,12 +46,21 @@ import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.bbd.BuildConfig
+import com.example.bbd.auth.AuthManager
 
 private enum class ErrField { EMP, PW }
 private data class LoginError(val title: String, val body: String, val web: Boolean, val field: ErrField = ErrField.EMP)
 
 @Composable
 fun LoginScreen(onLogin: () -> Unit) {
+    if (BuildConfig.USE_API) OidcLoginScreen(onLogin) else DemoLoginScreen(onLogin)
+}
+
+@Composable
+private fun DemoLoginScreen(onLogin: () -> Unit) {
     var emp by remember { mutableStateOf("BR002") }
     var pw by remember { mutableStateOf("") }
     var err by remember { mutableStateOf<LoginError?>(null) }
@@ -192,6 +201,72 @@ private fun LoginField(
                 }
                 inner()
             },
+        )
+    }
+}
+
+// ───────────────────────── OIDC 로그인 (USE_API) ─────────────────────────
+// Keycloak Authorization Code + PKCE. 버튼 → AppAuth Custom Tab → 토큰 교환 → Net.bearer 주입 → 홈.
+
+@Composable
+private fun OidcLoginScreen(onLogin: () -> Unit) {
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        AuthManager.handleResult(result.data) { ok, err ->
+            loading = false
+            if (ok) onLogin() else error = err ?: "로그인에 실패했어요."
+        }
+    }
+    Column(
+        Modifier.fillMaxSize().background(Color.White).padding(horizontal = 26.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(T.ink), contentAlignment = Alignment.Center) {
+                Text("BBD", fontFamily = Mono, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color.White, letterSpacing = (-0.6).sp)
+            }
+            Column {
+                Text("BBD ERP", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, letterSpacing = (-0.4).sp)
+                Text("현장 모바일", fontSize = 13.sp, color = T.ink3, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Spacer(Modifier.size(38.dp))
+        Text("로그인", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, letterSpacing = (-0.7).sp)
+        Spacer(Modifier.size(8.dp))
+        Text("회사 계정(Keycloak)으로 로그인하세요.", fontSize = 14.5.sp, color = T.ink2)
+        Spacer(Modifier.size(26.dp))
+
+        error?.let { e ->
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.redSoft)
+                    .border(1.dp, T.redBlockBorder, RoundedCornerShape(13.dp)).padding(horizontal = 14.dp, vertical = 13.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                BbdIcon("alert", 19.dp, T.red, sw = 2f)
+                Text(e, fontSize = 13.sp, color = T.redBlockTitle, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.size(18.dp))
+        }
+
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(if (loading) T.ink3 else T.blue)
+                .clickable(enabled = !loading) {
+                    loading = true; error = null
+                    AuthManager.beginLogin { intent ->
+                        if (intent != null) launcher.launch(intent)
+                        else { loading = false; error = "인증 서버에 연결하지 못했어요." }
+                    }
+                }.padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(if (loading) "로그인 중…" else "Keycloak으로 로그인", color = Color.White, fontSize = 16.5.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        Spacer(Modifier.size(16.dp))
+        Text(
+            "현장 모바일은 정비사·지점 점장만 이용할 수 있어요.",
+            fontSize = 12.sp, color = T.ink3, textAlign = TextAlign.Center, lineHeight = 18.sp,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
