@@ -4,6 +4,7 @@ import com.example.bbd.data.remote.Net
 import com.example.bbd.data.remote.SalesApi
 import com.example.bbd.data.remote.UiState
 import com.example.bbd.data.remote.dto.SalesOrderSummaryDto
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -19,35 +20,70 @@ class SalesOrderRepository(
 
     /** 내 지점으로 향하는 도착 대기(IN_FULFILLMENT) 발주. */
     suspend fun arrivals(warehouseCode: String): UiState<List<SalesOrderSummaryDto>> =
-        call { api.search(status = "IN_FULFILLMENT", toWarehouseCode = warehouseCode).items }
+        call { searchAll(status = "IN_FULFILLMENT", toWarehouseCode = warehouseCode) }
 
     /** 내 지점의 전체 보충 발주(상태 무관). */
     suspend fun branchOrders(warehouseCode: String): UiState<List<SalesOrderSummaryDto>> =
-        call { api.search(toWarehouseCode = warehouseCode).items }
+        call { searchAll(toWarehouseCode = warehouseCode) }
 
     /** 내가 입고 확인한 발주(작업 이력 소스 후보). */
     suspend fun receivedByMe(empId: String): UiState<List<SalesOrderSummaryDto>> =
-        call { api.search(receivedBy = empId).items }
+        call { searchAll(receivedBy = empId) }
 
     /** 도착 확인(입고 확정). 성공 여부만 반환. */
     suspend fun receive(soNumber: String): UiState<Unit> =
         withContext(Dispatchers.IO) {
-            runCatching { api.receive(soNumber) }.fold(
-                onSuccess = {
-                    if (it.isSuccessful) UiState.Success(Unit)
-                    else UiState.Error("입고 확정 실패 (${it.code()})")
-                },
-                onFailure = { UiState.Error(it.message ?: "네트워크 오류") },
-            )
+            try {
+                val resp = api.receive(soNumber)
+                if (resp.isSuccessful) UiState.Success(Unit)
+                else UiState.Error("입고 확정 실패 (${resp.code()})")
+            } catch (c: CancellationException) {
+                throw c
+            } catch (e: Exception) {
+                UiState.Error(e.message ?: "네트워크 오류")
+            }
         }
 
-    private suspend fun call(
-        block: suspend () -> List<SalesOrderSummaryDto>,
-    ): UiState<List<SalesOrderSummaryDto>> =
-        withContext(Dispatchers.IO) {
-            runCatching { block() }.fold(
-                onSuccess = { UiState.Success(it) },
-                onFailure = { UiState.Error(it.message ?: "네트워크 오류") },
+    /** 페이지를 끝까지 모아 전체 반환(size 100, 최대 20페이지=2000건 안전캡 — 무한루프 방지). */
+    private suspend fun searchAll(
+        status: String? = null,
+        toWarehouseCode: String? = null,
+        requestedBy: String? = null,
+        receivedBy: String? = null,
+    ): List<SalesOrderSummaryDto> {
+        val all = mutableListOf<SalesOrderSummaryDto>()
+        var page = 0
+        while (page < MAX_PAGES) {
+            val resp = api.search(
+                status = status,
+                toWarehouseCode = toWarehouseCode,
+                requestedBy = requestedBy,
+                receivedBy = receivedBy,
+                page = page,
+                size = PAGE_SIZE,
             )
+            all += resp.items
+            val totalPages = resp.pagination?.totalPages ?: 1
+            page++
+            if (page >= totalPages || resp.items.isEmpty()) break
         }
+        return all
+    }
+
+    // 코루틴 취소(CancellationException)는 삼키지 말고 재던져 structured concurrency 보존.
+    private suspend fun <T> call(block: suspend () -> T): UiState<T> =
+        withContext(Dispatchers.IO) {
+            try {
+                UiState.Success(block())
+            } catch (c: CancellationException) {
+                throw c
+            } catch (e: Exception) {
+                UiState.Error(e.message ?: "네트워크 오류")
+            }
+        }
+
+    private companion object {
+        const val PAGE_SIZE = 100
+        const val MAX_PAGES = 20
+    }
 }
