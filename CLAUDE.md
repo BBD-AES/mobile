@@ -7,7 +7,7 @@
 - Kotlin 2.2.10 · **AGP 9.2.1 (Kotlin 내장)** · Gradle 9.4.1 · Compose BOM 2026.02.01
 - minSdk 24 / compileSdk 36 / Java 17
 - 폰트: Pretendard(UI) + JetBrains Mono(코드·숫자) — `app/src/main/res/font` 번들
-- 데이터는 전부 앱 내장 시드(`data/Seed.kt`). 운영에서는 ERP API 로 대체 전제.
+- 데이터: 기본은 앱 내장 시드(`data/Seed.kt`). **`USE_API=true` 면 실 ERP API(`data/remote`·`data/repo`)로 대체** — 연동 진행 중(게이트웨이 OIDC Bearer). 플래그 off(기본)는 여전히 시드.
 
 ## 빌드 / 실행
 ```bash

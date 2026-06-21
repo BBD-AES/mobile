@@ -6,8 +6,9 @@ plugins {
 }
 
 // API 연동 설정 — gradle property 로 주입(공개 레포라 host 하드코딩 회피).
-// 예: ./gradlew assembleDebug -PBBD_BASE_URL="http://10.0.2.2:8080/sales/" -PBBD_USE_API=true
-val bbdBaseUrl = (project.findProperty("BBD_BASE_URL") as? String) ?: "http://10.0.2.2:8080/sales/"
+// BASE_URL = 게이트웨이 루트(서비스 prefix sales/·inventory/ 는 각 Api 경로에 포함).
+// 예: ./gradlew assembleDebug -PBBD_BASE_URL="http://10.0.2.2:8080/" -PBBD_USE_API=true
+val bbdBaseUrl = (project.findProperty("BBD_BASE_URL") as? String) ?: "http://10.0.2.2:8080/"
 // USE_API 는 boolean BuildConfig 필드 → 반드시 "true"/"false" 리터럴로 정규화(임의 문자열 codegen 깨짐 방지).
 val bbdUseApi = ((project.findProperty("BBD_USE_API") as? String)?.toBoolean() ?: false).toString()
 

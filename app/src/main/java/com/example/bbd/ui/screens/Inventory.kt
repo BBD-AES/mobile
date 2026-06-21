@@ -55,15 +55,27 @@ import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
+import androidx.compose.runtime.produceState
+import com.example.bbd.BuildConfig
+import com.example.bbd.data.InvSummary
+import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.repo.InventoryRepository
+import com.example.bbd.ui.state.ErrorState
+import com.example.bbd.ui.state.LoadingRows
 
 @Composable
 fun InventoryScreen(nav: Nav) {
+    if (BuildConfig.USE_API) InventoryScreenApi(nav) else InventoryBody(nav, Seed.PARTS, Seed.INV_SUMMARY, Seed.CATEGORIES)
+}
+
+@Composable
+private fun InventoryBody(nav: Nav, parts: List<Part>, summary: InvSummary, categories: List<String>) {
     var q by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("all") }
     var sel by remember { mutableStateOf<Part?>(null) }
-    val s = Seed.INV_SUMMARY
+    val s = summary
 
-    val list = Seed.PARTS.filter { p ->
+    val list = parts.filter { p ->
         (q.isBlank() || p.name.contains(q) || p.sku.contains(q, ignoreCase = true)) &&
             (filter == "all" ||
                 (filter in listOf("부족", "없음", "정상") && p.status.label == filter) ||
@@ -98,7 +110,7 @@ fun InventoryScreen(nav: Nav) {
                 Spacer(Modifier.size(14.dp))
 
                 // 필터 칩
-                FilterChips(filter, s) { filter = it }
+                FilterChips(filter, s, categories) { filter = it }
                 Spacer(Modifier.size(14.dp))
 
                 // 리스트
@@ -161,13 +173,13 @@ private fun Modifier.onFocusChangedCompat(cb: (Boolean) -> Unit): Modifier =
     this.onFocusChanged { cb(it.isFocused) }
 
 @Composable
-private fun FilterChips(filter: String, s: com.example.bbd.data.InvSummary, onPick: (String) -> Unit) {
+private fun FilterChips(filter: String, s: com.example.bbd.data.InvSummary, categories: List<String>, onPick: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
         Chip("전체", filter == "all", count = s.total) { onPick("all") }
         Chip("부족", filter == "부족", count = s.short, icon = "alert", iconColor = T.blue) { onPick("부족") }
         Chip("없음", filter == "없음", count = s.none, icon = "ban", iconColor = T.red) { onPick("없음") }
         Chip("정상", filter == "정상", count = s.ok, icon = "check", iconColor = T.ink3) { onPick("정상") }
-        Seed.CATEGORIES.forEach { c ->
+        categories.forEach { c ->
             Chip(c, filter == c) { onPick(c) }
         }
     }
@@ -296,3 +308,40 @@ private fun RowScope.StatTile(label: String, value: Int, unit: String, accent: C
         }
     }
 }
+
+// ───────────────────────── 실 API 경로 (USE_API) ─────────────────────────
+// inventory GET /inventory/api/v1/stocks?warehouseCode= 로 내 지점 재고 로드 → Part 매핑.
+// 상태(부족/없음/정상)는 현재고/안전재고로 계산, 요약은 목록에서 산출. 인증 토큰 필요.
+
+@Composable
+private fun InventoryScreenApi(nav: Nav) {
+    val repo = remember { InventoryRepository() }
+    var reloadKey by remember { mutableStateOf(0) }
+    val state by produceState<UiState<List<Part>>>(UiState.Loading, reloadKey) {
+        value = UiState.Loading
+        value = repo.branchStocks(Seed.USER.warehouse)
+    }
+    when (val st = state) {
+        is UiState.Success -> InventoryBody(nav, st.data, summaryOf(st.data), st.data.map { it.cat }.filter { it.isNotBlank() }.distinct())
+        else -> Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().background(T.bg)) {
+                Header(title = "재고 조회", back = true, right = HeaderRight.BELL, onBack = { nav.tab("home") })
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
+                ) {
+                    if (st is UiState.Loading) LoadingRows()
+                    if (st is UiState.Error) ErrorState(st.message, onRetry = { reloadKey++ })
+                }
+                TabBar(active = "inventory", onTab = nav.tab)
+            }
+        }
+    }
+}
+
+private fun summaryOf(parts: List<Part>): InvSummary = InvSummary(
+    total = parts.size,
+    short = parts.count { it.status == StockStatus.SHORT },
+    none = parts.count { it.status == StockStatus.NONE },
+    ok = parts.count { it.status == StockStatus.OK },
+)
