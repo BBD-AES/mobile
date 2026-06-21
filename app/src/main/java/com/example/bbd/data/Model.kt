@@ -1,7 +1,7 @@
 package com.example.bbd.data
 
-/** 재고 이동 유형 — 입고 / 출고 / 조정(표시 전용). */
-enum class MoveType { IN, OUT, ADJ }
+/** 재고 이동 유형 — 입고 / 출고(표시 전용). 모바일 쓰기 진입점은 입고(SO receive)뿐. */
+enum class MoveType { IN, OUT }
 
 /** 재고 상태 — 현재고 vs 안전재고. */
 enum class StockStatus(val label: String) {
@@ -97,7 +97,7 @@ data class CurrentUser(
 )
 
 data class InvSummary(val total: Int, val short: Int, val none: Int, val ok: Int)
-data class WorklogSummary(val total: Int, val inN: Int, val outN: Int, val adj: Int, val from: String, val to: String)
+data class WorklogSummary(val total: Int, val inN: Int, val outN: Int, val from: String, val to: String)
 
 /** 로그인 게이팅 결과. */
 sealed interface LoginResult {

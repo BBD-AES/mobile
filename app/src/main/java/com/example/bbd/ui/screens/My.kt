@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,7 +36,6 @@ import com.example.bbd.data.Seed
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.CodeText
 import com.example.bbd.ui.Header
-import com.example.bbd.ui.HeaderRight
 import com.example.bbd.ui.MovementRow
 import com.example.bbd.ui.Nav
 import com.example.bbd.ui.Screen
@@ -44,11 +44,12 @@ import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.theme.T
 
 @Composable
-fun MyScreen(nav: Nav) {
+fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val u = Seed.USER
     var notif by remember { mutableStateOf(true) }
 
-    Screen(tab = "my", onTab = nav.tab, header = { Header(title = "마이", right = HeaderRight.BELL) }) {
+    // 벨 no-op 제거 → 헤더 우측 액션 없음(마이엔 알림 진입점 불필요).
+    Screen(contentPad = contentPad, header = { Header(title = "마이") }) {
         // 프로필 카드
         Row(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 18.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Box {
@@ -90,7 +91,7 @@ fun MyScreen(nav: Nav) {
         Column(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("내 작업 이력", fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.weight(1f))
-                Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { nav.push("worklog") }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { nav.tab("worklog") }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("전체 보기 ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.blue)
                     BbdIcon("chevR", 15.dp, T.blue)
                 }

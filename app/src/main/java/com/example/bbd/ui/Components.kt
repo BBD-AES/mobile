@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -189,12 +190,16 @@ fun Header(
 // ───────────────────────── 탭바 ─────────────────────────
 
 private data class Tab(val id: String, val label: String, val icon: String)
+// 4개 루트 탭. 스캔은 탭이 아니라 중앙 FAB(App 셸). 작업이력 탭 신설.
 private val TABS = listOf(
     Tab("home", "홈", "home"),
-    Tab("scan", "스캔", "scan"),
     Tab("inventory", "재고", "box"),
+    Tab("worklog", "작업이력", "list"),
     Tab("my", "마이", "user"),
 )
+
+/** 루트 탭 ID(셸이 TabBar/FAB 노출 여부 판정에 사용). */
+val TAB_ROUTES: Set<String> = TABS.map { it.id }.toSet()
 
 @Composable
 fun TabBar(active: String, onTab: (String) -> Unit) {
@@ -216,23 +221,22 @@ fun TabBar(active: String, onTab: (String) -> Unit) {
 
 // ───────────────────────── 화면 스캐폴드 ─────────────────────────
 
-/** 헤더 + 스크롤 본문(+선택 탭바). 단순 스크롤 화면용. */
+/** 헤더 + 스크롤 본문. 단순 스크롤 화면용. 탭바는 App 셸이 노출(여기서 그리지 않음).
+ *  탭 루트는 contentPad(셸 탭바 높이)를 받아 본문이 탭바에 가리지 않게 한다. */
 @Composable
 fun Screen(
-    tab: String? = null,
-    onTab: (String) -> Unit = {},
     bg: Color = T.bg,
+    contentPad: PaddingValues = PaddingValues(),
     header: @Composable () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().background(bg)) {
+    Column(Modifier.fillMaxSize().background(bg).padding(contentPad)) {
         header()
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             content = content,
         )
-        if (tab != null) TabBar(tab, onTab)
     }
 }
 
@@ -249,7 +253,6 @@ fun MovementRow(
     val isIn = m.delta > 0
     val (circleBg, icon, iconColor) = when (m.type) {
         MoveType.OUT -> Triple(T.outCircle, "arrowUp", Color.White)
-        MoveType.ADJ -> Triple(T.lineSoft, "plus", T.ink2)
         MoveType.IN -> Triple(T.blueSoft, "arrowDn", T.blue)
     }
     var mod = Modifier.fillMaxWidth()

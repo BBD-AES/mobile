@@ -56,7 +56,9 @@ private data class LoginError(val title: String, val body: String, val web: Bool
 
 @Composable
 fun LoginScreen(onLogin: () -> Unit) {
-    if (BuildConfig.USE_API) OidcLoginScreen(onLogin) else DemoLoginScreen(onLogin)
+    // 출하(release) 빌드는 데모 사번/비번 로그인을 기본으로 두지 않는다 → 항상 OIDC.
+    // 데모 게이팅 로그인은 debug 빌드에서 USE_API=off 일 때만.
+    if (BuildConfig.USE_API || !BuildConfig.DEBUG) OidcLoginScreen(onLogin) else DemoLoginScreen(onLogin)
 }
 
 @Composable

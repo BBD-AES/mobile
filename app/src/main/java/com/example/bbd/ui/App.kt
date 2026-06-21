@@ -1,24 +1,20 @@
 package com.example.bbd.ui
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,12 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.bbd.data.Part
 import com.example.bbd.ui.screens.HomeScreen
 import com.example.bbd.ui.screens.InventoryScreen
 import com.example.bbd.ui.screens.LoginScreen
@@ -42,55 +37,109 @@ import com.example.bbd.ui.screens.MyScreen
 import com.example.bbd.ui.screens.OrderScreen
 import com.example.bbd.ui.screens.ScanScreen
 import com.example.bbd.ui.screens.WorklogScreen
-import com.example.bbd.ui.theme.Mono
-import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
 
-/** 네비게이션 API — 프로토타입 nav 모델 대응. 스택 + 하단 탭. */
+/** 네비게이션 API — 스택 + 하단 탭. (부품 프리셋 push 는 입고=SO 단위 전환으로 제거됨.) */
 class Nav(
     val push: (String) -> Unit,
-    val pushPart: (String, Part) -> Unit,
     val pop: () -> Unit,
     val tab: (String) -> Unit,
     val login: () -> Unit,
     val logout: () -> Unit,
 )
 
-private data class Route(val screen: String, val param: Part? = null)
+private data class Route(val screen: String)
+
+/** 탭바 높이(아이콘+라벨+패딩 근사). 탭 루트 본문 하단 패딩에 사용. */
+private val TabBarHeight = 64.dp
 
 @Composable
 fun BbdApp() {
     var stack by remember { mutableStateOf(listOf(Route("login"))) }
-    var scanSheet by remember { mutableStateOf(false) }
     val top = stack.last()
+    val isTabRoot = stack.size == 1 && top.screen in TAB_ROUTES
+
+    // 하드웨어 백: 루트(로그인 제외)에서 한 번 더 누르면 종료.
+    val activity = LocalContext.current as? Activity
+    var backToast by remember { mutableStateOf("") }
+    var lastBackAt by remember { mutableStateOf(0L) }
+    if (backToast.isNotBlank()) {
+        LaunchedEffect(backToast, lastBackAt) {
+            kotlinx.coroutines.delay(2000); backToast = ""
+        }
+    }
 
     val nav = Nav(
         push = { s -> stack = stack + Route(s) },
-        pushPart = { s, p -> stack = stack + Route(s, p) },
         pop = { if (stack.size > 1) stack = stack.dropLast(1) },
-        tab = { id -> if (id == "scan") scanSheet = true else stack = listOf(Route(id)) },
+        tab = { id -> stack = listOf(Route(id)) },
         login = { stack = listOf(Route("home")) },
         logout = { stack = listOf(Route("login")) },
     )
 
     Box(Modifier.fillMaxSize().background(Color.White)) {
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
-            val routeKey = top.screen + "/" + stack.size
-            ScreenContainer(routeKey) {
-                when (top.screen) {
-                    "login" -> LoginScreen(onLogin = nav.login)
-                    "home" -> HomeScreen(nav)
-                    "inventory" -> InventoryScreen(nav)
-                    "my" -> MyScreen(nav)
-                    "worklog" -> WorklogScreen(nav)
-                    "order" -> OrderScreen(nav)
-                    "scan-in" -> ScanScreen(nav, mode = "in", preset = top.param)
-                    "scan-out" -> ScanScreen(nav, mode = "out", preset = top.param)
-                    else -> HomeScreen(nav)
+            // (1) push 스택 깊으면 pop, (2) 루트면(로그인 제외) 더블탭 종료, (3) 로그인 루트는 종료 허용.
+            BackHandler(enabled = top.screen != "login" || stack.size > 1) {
+                if (stack.size > 1) {
+                    stack = stack.dropLast(1)
+                } else {
+                    val now = System.currentTimeMillis()
+                    if (now - lastBackAt < 2000) {
+                        activity?.finish()
+                    } else {
+                        lastBackAt = now
+                        backToast = "한 번 더 누르면 종료됩니다"
+                    }
                 }
             }
-            ScanSheet(open = scanSheet, onClose = { scanSheet = false }, nav = nav)
+
+            val routeKey = top.screen + "/" + stack.size
+            ScreenContainer(routeKey) {
+                // 탭 루트 본문은 탭바 높이만큼 하단 패딩 확보.
+                val contentPad = if (isTabRoot) PaddingValues(bottom = TabBarHeight) else PaddingValues()
+                when (top.screen) {
+                    "login" -> LoginScreen(onLogin = nav.login)
+                    "home" -> HomeScreen(nav, contentPad)
+                    "inventory" -> InventoryScreen(nav, contentPad)
+                    "my" -> MyScreen(nav, contentPad)
+                    "worklog" -> WorklogScreen(nav, contentPad)
+                    "order" -> OrderScreen(nav)
+                    "scan-in" -> ScanScreen(nav)
+                    else -> HomeScreen(nav, contentPad)
+                }
+            }
+
+            // 탭바 셸 — 탭 루트에서만 1회 노출. 스캔은 중앙 FAB.
+            if (isTabRoot) {
+                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+                    TabBar(active = top.screen, onTab = nav.tab)
+                    ScanFab(
+                        Modifier.align(Alignment.TopCenter),
+                        onClick = { nav.push("scan-in") },
+                    )
+                }
+            }
+
+            ToastHost(backToast)
         }
+    }
+}
+
+/** 탭바 위로 돌출한 중앙 스캔 FAB → 입고 스캔(scan-in). */
+@Composable
+private fun ScanFab(modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .graphicsLayer { translationY = -26.dp.toPx() }
+            .size(58.dp)
+            .shadow(10.dp, CircleShape, clip = false, ambientColor = T.blue, spotColor = T.blue)
+            .clip(CircleShape)
+            .background(T.blue)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        BbdIcon("scan", 28.dp, Color.White, sw = 2.1f)
     }
 }
 
@@ -103,40 +152,5 @@ private fun ScreenContainer(routeKey: String, content: @Composable () -> Unit) {
         Box(Modifier.fillMaxSize().graphicsLayer { translationY = (1f - anim.value) * 8.dp.toPx() }) {
             content()
         }
-    }
-}
-
-/** 스캔 탭 → 입고/출고 선택 액션 시트. 직접 네비게이션하지 않고 시트만 연다. */
-@Composable
-fun BoxScope.ScanSheet(open: Boolean, onClose: () -> Unit, nav: Nav) {
-    SheetHost(open = open, onClose = onClose, title = "스캔") {
-        Column(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 26.dp),
-            verticalArrangement = Arrangement.spacedBy(11.dp),
-        ) {
-            ScanSheetOption("box", "입고 스캔", "IN · 도착 부품 확정", T.blue) { onClose(); nav.push("scan-in") }
-            ScanSheetOption("logout", "출고 스캔", "OUT · 작업 사용 차감", T.blueDeep) { onClose(); nav.push("scan-out") }
-        }
-    }
-}
-
-@Composable
-private fun ScanSheetOption(icon: String, title: String, sub: String, bg: Color, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .border(1.dp, T.line, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(bg), contentAlignment = Alignment.Center) {
-            BbdIcon(icon, 23.dp, Color.White, sw = 1.9f)
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 16.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, fontFamily = Pretendard)
-            Text(sub, fontSize = 12.5.sp, color = T.ink3, fontFamily = Mono)
-        }
-        BbdIcon("chevR", 19.dp, T.ink3)
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,7 +33,6 @@ import com.example.bbd.data.Movement
 import com.example.bbd.data.Seed
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.Header
-import com.example.bbd.ui.HeaderRight
 import com.example.bbd.ui.MovementRow
 import com.example.bbd.ui.Nav
 import com.example.bbd.ui.Screen
@@ -50,12 +50,12 @@ import com.example.bbd.ui.state.ErrorState
 import com.example.bbd.ui.state.LoadingRows
 
 @Composable
-fun WorklogScreen(nav: Nav) {
-    if (BuildConfig.USE_API) WorklogScreenApi(nav) else WorklogScreenMock(nav)
+fun WorklogScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
+    if (BuildConfig.USE_API) WorklogScreenApi(nav, contentPad) else WorklogScreenMock(nav, contentPad)
 }
 
 @Composable
-private fun WorklogScreenMock(nav: Nav) {
+private fun WorklogScreenMock(nav: Nav, contentPad: PaddingValues) {
     var q by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("all") }
     var sel by remember { mutableStateOf<String?>(null) }
@@ -64,15 +64,15 @@ private fun WorklogScreenMock(nav: Nav) {
     val list = Seed.WORKLOG.filter { m ->
         (filter == "all" ||
             (filter == "in" && m.type == MoveType.IN) ||
-            (filter == "out" && m.type == MoveType.OUT) ||
-            (filter == "adj" && m.type == MoveType.ADJ)) &&
+            (filter == "out" && m.type == MoveType.OUT)) &&
             (q.isBlank() || m.name.contains(q) || m.sku.contains(q, ignoreCase = true))
     }
     // 날짜별 그룹 (목록 순서 유지)
     val groups = linkedMapOf<String, MutableList<Movement>>()
     list.forEach { groups.getOrPut(it.day) { mutableListOf() }.add(it) }
 
-    Screen(header = { Header(title = "내 작업 이력", back = true, right = HeaderRight.BELL, onBack = { nav.pop() }) }) {
+    // 작업이력은 탭 루트 → 헤더 백/벨 없음(벨 no-op 제거).
+    Screen(contentPad = contentPad, header = { Header(title = "내 작업 이력") }) {
         SearchField(q, { q = it }, "부품명 또는 코드", showScan = false)
         Spacer(Modifier.size(12.dp))
 
@@ -82,11 +82,10 @@ private fun WorklogScreenMock(nav: Nav) {
             WChip("전체", null, s.total, filter == "all") { filter = "all" }
             WChip("입고", "arrowDn", s.inN, filter == "in") { filter = "in" }
             WChip("출고", "arrowUp", s.outN, filter == "out") { filter = "out" }
-            WChip("조정", "plus", s.adj, filter == "adj") { filter = "adj" }
         }
         Spacer(Modifier.size(13.dp))
 
-        // 기간
+        // 기간 (최근 30일 고정 — 기간 직접 선택은 미구현이라 노출하지 않음)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(
                 Modifier.clip(RoundedCornerShape(999.dp)).background(T.blueSoft).padding(horizontal = 13.dp, vertical = 8.dp),
@@ -94,11 +93,6 @@ private fun WorklogScreenMock(nav: Nav) {
             ) {
                 BbdIcon("cal", 15.dp, T.blue)
                 Text("최근 30일", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.blueInk)
-            }
-            Spacer(Modifier.weight(1f))
-            Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { }.padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                BbdIcon("cal", 15.dp, T.ink3)
-                Text("기간 직접 선택", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = T.ink2)
             }
         }
         Spacer(Modifier.size(6.dp))
@@ -153,14 +147,14 @@ private fun WChip(label: String, icon: String?, count: Int, on: Boolean, onClick
 // 요약 응답엔 라인이 없어 주문 단위 행으로 렌더(부품 단위 추측 금지). 인증 토큰 필요.
 
 @Composable
-private fun WorklogScreenApi(nav: Nav) {
+private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
     val repo = remember { SalesOrderRepository() }
     var reloadKey by remember { mutableStateOf(0) }
     val state by produceState<UiState<List<SalesOrderSummaryDto>>>(UiState.Loading, reloadKey) {
         value = UiState.Loading
         value = repo.receivedByMe(Seed.USER.emp)
     }
-    Screen(header = { Header(title = "내 작업 이력", back = true, right = HeaderRight.BELL, onBack = { nav.pop() }) }) {
+    Screen(contentPad = contentPad, header = { Header(title = "내 작업 이력") }) {
         when (val s = state) {
             is UiState.Loading -> LoadingRows()
             is UiState.Error -> ErrorState(s.message, onRetry = { reloadKey++ })

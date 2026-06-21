@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -19,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,25 +28,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bbd.data.Pr
 import com.example.bbd.data.PrStatus
 import com.example.bbd.data.Seed
-import com.example.bbd.data.StockStatus
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.CodeText
 import com.example.bbd.ui.Header
-import com.example.bbd.ui.HeaderRight
 import com.example.bbd.ui.Nav
 import com.example.bbd.ui.PartThumb
-import com.example.bbd.ui.SheetHost
-import com.example.bbd.ui.StatusPill
-import com.example.bbd.ui.ToastHost
 import com.example.bbd.ui.bbdCard
-import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.topBorder
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
@@ -80,21 +71,16 @@ fun OrderScreen(nav: Nav) {
 @Composable
 private fun OrderScreenMock(nav: Nav) {
     var tab by remember { mutableStateOf("open") }
-    var create by remember { mutableStateOf(false) }
-    var toast by remember { mutableStateOf("") }
-    var list by remember { mutableStateOf(Seed.PR) }
+    val list = Seed.PR
 
     val open = list.filter { it.status.isOpen }
     val done = list.filter { it.status.isDone }
     val shown = if (tab == "open") open else done
 
-    if (toast.isNotBlank()) {
-        LaunchedEffect(toast) { kotlinx.coroutines.delay(1800); toast = "" }
-    }
-
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
-            Header(title = "보충 발주 요청", back = true, right = HeaderRight.BELL, onBack = { nav.pop() })
+            // 작성은 웹 전용 → 제목을 조회 뉘앙스로.
+            Header(title = "보충 발주 현황", back = true, onBack = { nav.pop() })
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 28.dp)) {
                 // 지점 + 권한
                 Row(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -104,9 +90,23 @@ private fun OrderScreenMock(nav: Nav) {
                     Column(Modifier.weight(1f)) {
                         Text(Seed.USER.branch, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
                         Spacer(Modifier.size(2.dp))
-                        Text("본사로 보충을 요청합니다", fontSize = 12.sp, color = T.ink3)
+                        Text("본사로 보낸 보충 발주 현황", fontSize = 12.sp, color = T.ink3)
                     }
                     CodeText(Seed.USER.warehouse, size = 12.sp)
+                }
+                Spacer(Modifier.size(12.dp))
+
+                // 읽기 전용 안내 — 작성/승인은 웹 ERP
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.blueSoft)
+                        .border(1.dp, T.inBannerBorder, RoundedCornerShape(13.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    BbdIcon("info", 18.dp, T.blue, sw = 2f)
+                    Text(
+                        "발주 요청·승인은 웹 ERP에서 처리합니다. 모바일에서는 현황만 확인해요.",
+                        fontSize = 12.5.sp, color = T.blueInk, fontWeight = FontWeight.SemiBold, lineHeight = 18.sp,
+                    )
                 }
                 Spacer(Modifier.size(14.dp))
 
@@ -127,34 +127,7 @@ private fun OrderScreenMock(nav: Nav) {
                     }
                 }
             }
-
-            // 하단 작성 버튼
-            Box(Modifier.fillMaxWidth().background(T.card).padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().shadow(10.dp, RoundedCornerShape(14.dp), clip = false, spotColor = T.blue, ambientColor = T.blue)
-                        .clip(RoundedCornerShape(14.dp)).background(T.blue).clickable { create = true }.padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BbdIcon("plus", 21.dp, Color.White, sw = 2.4f)
-                    Spacer(Modifier.size(8.dp))
-                    Text("발주 요청 작성", color = Color.White, fontSize = 16.5.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            }
         }
-
-        CreateSheet(open = create, onClose = { create = false }) { draft ->
-            // 올해 prefix 의 기존 발주 번호 최댓값 + 1 → 연도 종속 제거 + prefix 범위로만 채번
-            val prefix = "PR-${java.time.LocalDate.now().year}-"
-            val maxN = list.filter { it.id.startsWith(prefix) }
-                .mapNotNull { it.id.removePrefix(prefix).toIntOrNull() }
-                .maxOrNull() ?: 0
-            val newPr = draft.copy(id = "$prefix%04d".format(maxN + 1))
-            list = listOf(newPr) + list
-            create = false
-            tab = "open"
-            toast = "발주 요청 등록 완료 · ${newPr.qty} ${newPr.unit}"
-        }
-        ToastHost(toast)
     }
 }
 
@@ -220,92 +193,6 @@ private fun OrderCard(pr: Pr) {
     }
 }
 
-// ───────────────────────── 발주 요청 작성 시트 ─────────────────────────
-
-@Composable
-private fun androidx.compose.foundation.layout.BoxScope.CreateSheet(open: Boolean, onClose: () -> Unit, onSubmit: (Pr) -> Unit) {
-    val recommend = Seed.PARTS.filter { it.status != StockStatus.OK }
-    var sku by remember { mutableStateOf(recommend.firstOrNull()?.sku ?: Seed.PARTS.first().sku) }
-    var qty by remember { mutableStateOf(20) }
-    var reason by remember { mutableStateOf("안전재고 미달") }
-    var pick by remember { mutableStateOf(false) }
-    val part = Seed.partBySku(sku) ?: Seed.PARTS.first()
-    val reasons = listOf("안전재고 미달", "무재고 보충", "수요 증가", "예방 정비")
-
-    SheetHost(open = open, onClose = onClose, title = "발주 요청 작성") {
-        Column(Modifier.fillMaxWidth().heightIn(max = 600.dp).verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 24.dp)) {
-            Text("부품", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2)
-            Spacer(Modifier.size(9.dp))
-            // 선택 버튼
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card).border(1.5.dp, if (pick) T.blue else T.line, RoundedCornerShape(13.dp)).clickable { pick = !pick }.padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                PartThumb(part.thumb, size = 44.dp, active = true)
-                Column(Modifier.weight(1f)) {
-                    Text(part.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.size(3.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        CodeText(part.sku, size = 12.sp)
-                        Text("· 현재고 ${part.qty}${part.unit}", fontSize = 11.5.sp, color = T.ink3)
-                    }
-                }
-                BbdIcon(if (pick) "chevD" else "chevR", 18.dp, T.ink3)
-            }
-            if (pick) {
-                Spacer(Modifier.size(10.dp))
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).border(1.dp, T.line, RoundedCornerShape(13.dp))) {
-                    Seed.PARTS.forEachIndexed { i, p ->
-                        val on = p.sku == sku
-                        Row(
-                            Modifier.fillMaxWidth().background(if (on) T.hotBg else T.card).then(if (i < Seed.PARTS.lastIndex) Modifier.bottomBorder(T.lineSoft) else Modifier).clickable { sku = p.sku; pick = false }.padding(horizontal = 14.dp, vertical = 11.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp),
-                        ) {
-                            PartThumb(p.thumb, size = 36.dp, active = on)
-                            Column(Modifier.weight(1f)) {
-                                Text(p.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                CodeText(p.sku, size = 11.5.sp)
-                            }
-                            if (p.status != StockStatus.OK) StatusPill(p.status)
-                            if (on) { Spacer(Modifier.size(6.dp)); BbdIcon("check", 18.dp, T.blue, sw = 2.4f) }
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.size(16.dp))
-
-            Row { Text("요청 수량 ", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2); Text("*", fontSize = 13.sp, color = T.blue, fontWeight = FontWeight.Bold) }
-            Spacer(Modifier.size(9.dp))
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(13.dp)).border(1.5.dp, T.line, RoundedCornerShape(13.dp)), verticalAlignment = Alignment.CenterVertically) {
-                StepBtn("minus", 60.dp) { if (qty > 1) qty = (qty - 5).coerceAtLeast(1) }
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.Bottom) {
-                    Text("$qty", fontFamily = Mono, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
-                    Text(" ${part.unit}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink3)
-                }
-                StepBtn("plus", 60.dp) { qty += 5 }
-            }
-            Spacer(Modifier.size(16.dp))
-
-            Text("사유", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2)
-            Spacer(Modifier.size(9.dp))
-            FlowChips(reasons, reason) { reason = it }
-            Spacer(Modifier.size(22.dp))
-
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.blue).clickable {
-                    onSubmit(
-                        Pr("", part.sku, part.name, qty, part.unit, PrStatus.REQUESTED, reason, java.time.LocalDate.now().toString(), java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")), Seed.USER.name, "본사 승인 대기 중"),
-                    )
-                    qty = 20; reason = "안전재고 미달"
-                }.padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) { Text("본사로 발주 요청", color = Color.White, fontSize = 16.5.sp, fontWeight = FontWeight.ExtraBold) }
-            Spacer(Modifier.size(11.dp))
-            Text("요청 후 본사 승인을 기다립니다 · 승인·거절은 본사에서 처리해요", fontSize = 12.sp, color = T.ink3, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        }
-    }
-}
-
 // ───────────────────────── 실 API 경로 (USE_API) ─────────────────────────
 // sales GET /api/v1/sales-orders 로 내 지점 보충 발주 로드 → 로딩/에러/빈/목록.
 // 요약 응답엔 라인이 없어 주문 단위 카드로 렌더(부품 단위 추측 금지). 작성(POST)·라인 상세·인증은 후속.
@@ -319,7 +206,7 @@ private fun OrderScreenApi(nav: Nav) {
         value = repo.branchOrders(Seed.USER.warehouse)
     }
     Column(Modifier.fillMaxSize().background(T.bg)) {
-        Header(title = "보충 발주 요청", back = true, right = HeaderRight.BELL, onBack = { nav.pop() })
+        Header(title = "보충 발주 현황", back = true, onBack = { nav.pop() })
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 28.dp),

@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -35,22 +36,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.bbd.data.Movement
-import com.example.bbd.data.MoveType
 import com.example.bbd.data.Part
 import com.example.bbd.data.Seed
 import com.example.bbd.data.StockStatus
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.CodeText
 import com.example.bbd.ui.Header
-import com.example.bbd.ui.HeaderRight
-import com.example.bbd.ui.MovementRow
 import com.example.bbd.ui.Nav
 import com.example.bbd.ui.PartThumb
 import com.example.bbd.ui.SheetHost
 import com.example.bbd.ui.StatusPill
 import com.example.bbd.ui.SummaryPill
-import com.example.bbd.ui.TabBar
 import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
@@ -64,31 +60,32 @@ import com.example.bbd.ui.state.ErrorState
 import com.example.bbd.ui.state.LoadingRows
 
 @Composable
-fun InventoryScreen(nav: Nav) {
-    if (BuildConfig.USE_API) InventoryScreenApi(nav) else InventoryBody(nav, Seed.PARTS, Seed.INV_SUMMARY, Seed.CATEGORIES)
+fun InventoryScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
+    if (BuildConfig.USE_API) InventoryScreenApi(nav, contentPad)
+    else InventoryBody(nav, Seed.PARTS, Seed.INV_SUMMARY, Seed.CATEGORIES, contentPad)
 }
 
 @Composable
-private fun InventoryBody(nav: Nav, parts: List<Part>, summary: InvSummary, categories: List<String>) {
+private fun InventoryBody(nav: Nav, parts: List<Part>, summary: InvSummary, categories: List<String>, contentPad: PaddingValues) {
     var q by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf("all") }
+    var statusFilter by remember { mutableStateOf("all") } // all/부족/없음/정상
+    var catFilter by remember { mutableStateOf<String?>(null) } // null=전체 분류
     var sel by remember { mutableStateOf<Part?>(null) }
     val s = summary
 
     val list = parts.filter { p ->
         (q.isBlank() || p.name.contains(q) || p.sku.contains(q, ignoreCase = true)) &&
-            (filter == "all" ||
-                (filter in listOf("부족", "없음", "정상") && p.status.label == filter) ||
-                (filter !in listOf("부족", "없음", "정상") && p.cat == filter))
+            (statusFilter == "all" || p.status.label == statusFilter) &&
+            (catFilter == null || p.cat == catFilter)
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
-            Header(title = "재고 조회", back = true, right = HeaderRight.BELL, onBack = { nav.tab("home") })
+            Header(title = "재고 조회", back = true, onBack = { nav.tab("home") })
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             ) {
-                // 지점 + 요약
+                // 지점 + 요약 (정상 건수도 노출 → 필터 칩 카운트와 일치)
                 Row(
                     Modifier.fillMaxWidth().bbdCard().padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -99,18 +96,23 @@ private fun InventoryBody(nav: Nav, parts: List<Part>, summary: InvSummary, cate
                         CodeText(Seed.USER.branchCode, size = 12.5.sp)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        SummaryPill(T.blueSoft, T.blueInk, T.blue, "부족 ${s.short}건")
-                        SummaryPill(T.redSoft, T.red, T.red, "없음 ${s.none}건")
+                        SummaryPill(T.blueSoft, T.blueInk, T.blue, "부족 ${s.short}")
+                        SummaryPill(T.redSoft, T.red, T.red, "없음 ${s.none}")
+                        SummaryPill(T.lineSoft, T.ink2, T.green, "정상 ${s.ok}")
                     }
                 }
                 Spacer(Modifier.size(12.dp))
 
-                // 검색
-                SearchField(q, { q = it }, "부품명 또는 코드 검색", showScan = true)
+                // 검색 (read 전용 → 바코드 스캔 아이콘 없음)
+                SearchField(q, { q = it }, "부품명 또는 코드 검색", showScan = false)
                 Spacer(Modifier.size(14.dp))
 
-                // 필터 칩
-                FilterChips(filter, s, categories) { filter = it }
+                // 필터 — 1줄 상태 세그먼트 + 2줄 분류 칩 (2축 분리)
+                StatusFilterRow(statusFilter, s) { statusFilter = it }
+                if (categories.isNotEmpty()) {
+                    Spacer(Modifier.size(12.dp))
+                    CategoryFilterRow(catFilter, categories) { catFilter = it }
+                }
                 Spacer(Modifier.size(14.dp))
 
                 // 리스트
@@ -121,13 +123,13 @@ private fun InventoryBody(nav: Nav, parts: List<Part>, summary: InvSummary, cate
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
                         list.forEachIndexed { i, p ->
-                            val hot = i == 0 && filter == "all" && q.isBlank()
+                            val hot = i == 0 && statusFilter == "all" && catFilter == null && q.isBlank()
                             PartRow(p, hot) { sel = p }
                         }
                     }
                 }
             }
-            TabBar(active = "inventory", onTab = nav.tab)
+            // TabBar 는 App 셸이 1회 노출.
         }
 
         SheetHost(open = sel != null, onClose = { sel = null }) {
@@ -172,15 +174,30 @@ fun SearchField(value: String, onValue: (String) -> Unit, placeholder: String, s
 private fun Modifier.onFocusChangedCompat(cb: (Boolean) -> Unit): Modifier =
     this.onFocusChanged { cb(it.isFocused) }
 
+// 1줄 상태 세그먼트 (전체/부족/없음/정상). 카운트는 요약과 일치.
 @Composable
-private fun FilterChips(filter: String, s: com.example.bbd.data.InvSummary, categories: List<String>, onPick: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        Chip("전체", filter == "all", count = s.total) { onPick("all") }
-        Chip("부족", filter == "부족", count = s.short, icon = "alert", iconColor = T.blue) { onPick("부족") }
-        Chip("없음", filter == "없음", count = s.none, icon = "ban", iconColor = T.red) { onPick("없음") }
-        Chip("정상", filter == "정상", count = s.ok, icon = "check", iconColor = T.ink3) { onPick("정상") }
-        categories.forEach { c ->
-            Chip(c, filter == c) { onPick(c) }
+private fun StatusFilterRow(filter: String, s: com.example.bbd.data.InvSummary, onPick: (String) -> Unit) {
+    Column {
+        Text("상태", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T.ink3, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Chip("전체", filter == "all", count = s.total) { onPick("all") }
+            Chip("부족", filter == "부족", count = s.short, icon = "alert", iconColor = T.blue) { onPick("부족") }
+            Chip("없음", filter == "없음", count = s.none, icon = "ban", iconColor = T.red) { onPick("없음") }
+            Chip("정상", filter == "정상", count = s.ok, icon = "check", iconColor = T.ink3) { onPick("정상") }
+        }
+    }
+}
+
+// 2줄 분류 칩 (엔진/오일…). 토글: 같은 칩 재선택 시 전체로. null=전체.
+@Composable
+private fun CategoryFilterRow(catFilter: String?, categories: List<String>, onPick: (String?) -> Unit) {
+    Column {
+        Text("분류", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T.ink3, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Chip("전체", catFilter == null) { onPick(null) }
+            categories.forEach { c ->
+                Chip(c, catFilter == c) { onPick(if (catFilter == c) null else c) }
+            }
         }
     }
 }
@@ -235,10 +252,6 @@ private fun PartRow(p: Part, hot: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
-    val moves = listOf(
-        Movement(MoveType.IN, "도착 입고 확정", 30, p.unit, p.sku, p.name, "5/19", "2026-05-19", "11:08"),
-        Movement(MoveType.OUT, "출고 · 교환", -2, p.unit, p.sku, p.name, "어제", "2026-05-21", "17:22"),
-    )
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 26.dp)) {
         // 헤더
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -262,33 +275,8 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             BbdIcon("pin", 14.dp, T.ink3); Text(p.wh, fontSize = 12.5.sp, color = T.ink2)
         }
-        Spacer(Modifier.size(18.dp))
-
-        Text("최근 이동", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2)
-        Spacer(Modifier.size(4.dp))
-        moves.forEachIndexed { i, m -> MovementRow(m, divider = i < moves.lastIndex) }
-        Spacer(Modifier.size(18.dp))
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            // 입고 ghost
-            Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(T.card).border(1.5.dp, T.blue, RoundedCornerShape(13.dp))
-                    .clickable { onClose(); nav.pushPart("scan-in", p) }.padding(vertical = 14.dp),
-                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BbdIcon("arrowDn", 18.dp, T.blue, sw = 2f); Spacer(Modifier.size(7.dp))
-                Text("입고", fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = T.blue)
-            }
-            // 출고 solid
-            Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(T.blue)
-                    .clickable { onClose(); nav.pushPart("scan-out", p) }.padding(vertical = 14.dp),
-                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BbdIcon("arrowUp", 18.dp, Color.White, sw = 2f); Spacer(Modifier.size(7.dp))
-                Text("출고", fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-            }
-        }
+        // 재고 조회는 read 전용 — 입고/출고 진입점 없음(입고는 SO 스캔 FAB, 출고 미지원).
+        // 더미 '최근 이동'은 SKU 무관 하드코딩이라 제거.
     }
 }
 
@@ -314,7 +302,7 @@ private fun RowScope.StatTile(label: String, value: Int, unit: String, accent: C
 // 상태(부족/없음/정상)는 현재고/안전재고로 계산, 요약은 목록에서 산출. 인증 토큰 필요.
 
 @Composable
-private fun InventoryScreenApi(nav: Nav) {
+private fun InventoryScreenApi(nav: Nav, contentPad: PaddingValues) {
     val repo = remember { InventoryRepository() }
     var reloadKey by remember { mutableStateOf(0) }
     val state by produceState<UiState<List<Part>>>(UiState.Loading, reloadKey) {
@@ -322,10 +310,10 @@ private fun InventoryScreenApi(nav: Nav) {
         value = repo.branchStocks(Seed.USER.warehouse)
     }
     when (val st = state) {
-        is UiState.Success -> InventoryBody(nav, st.data, summaryOf(st.data), st.data.map { it.cat }.filter { it.isNotBlank() }.distinct())
-        else -> Box(Modifier.fillMaxSize()) {
+        is UiState.Success -> InventoryBody(nav, st.data, summaryOf(st.data), st.data.map { it.cat }.filter { it.isNotBlank() }.distinct(), contentPad)
+        else -> Box(Modifier.fillMaxSize().padding(contentPad)) {
             Column(Modifier.fillMaxSize().background(T.bg)) {
-                Header(title = "재고 조회", back = true, right = HeaderRight.BELL, onBack = { nav.tab("home") })
+                Header(title = "재고 조회", back = true, onBack = { nav.tab("home") })
                 Column(
                     Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                         .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
@@ -333,7 +321,7 @@ private fun InventoryScreenApi(nav: Nav) {
                     if (st is UiState.Loading) LoadingRows()
                     if (st is UiState.Error) ErrorState(st.message, onRetry = { reloadKey++ })
                 }
-                TabBar(active = "inventory", onTab = nav.tab)
+                // TabBar 는 App 셸이 1회 노출.
             }
         }
     }

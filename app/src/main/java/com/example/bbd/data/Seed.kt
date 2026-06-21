@@ -48,14 +48,13 @@ object Seed {
 
     val WORKLOG: List<Movement> = listOf(
         Movement(MoveType.OUT, "출고 · 수리", -4, "EA", "BBD-FLT-2002", "오일필터 HD-O2", "오늘", "2026-05-22", "14:35"),
-        Movement(MoveType.IN, "도착 입고 확정", 60, "EA", "BBD-FLT-2001", "에어필터 HD-A1", "오늘", "2026-05-22", "09:14"),
+        Movement(MoveType.IN, "입고 · SO-2026-0031", 60, "EA", "BBD-FLT-2001", "에어필터 HD-A1", "오늘", "2026-05-22", "09:14"),
         Movement(MoveType.OUT, "출고 · 교환", -2, "SET", "BBD-BRK-4001", "전방 브레이크 패드", "어제", "2026-05-21", "17:22"),
         Movement(MoveType.OUT, "출고 · 검사", -1, "SET", "BBD-IGN-3002", "스파크플러그 이리듐", "어제", "2026-05-21", "14:08"),
-        Movement(MoveType.IN, "도착 입고 확정", 30, "SET", "BBD-BRK-4001", "전방 브레이크 패드", "5월 19일", "2026-05-19", "11:08"),
-        Movement(MoveType.ADJ, "재고 조정 · 실사", 1, "EA", "BBD-BRK-4005", "DOT4 브레이크 액 1L", "5월 18일", "2026-05-18", "10:42"),
+        Movement(MoveType.IN, "입고 · SO-2026-0035", 30, "SET", "BBD-BRK-4001", "전방 브레이크 패드", "5월 19일", "2026-05-19", "11:08"),
     )
 
-    val WORKLOG_SUMMARY = WorklogSummary(total = 23, inN = 9, outN = 12, adj = 2, from = "2026-04-22", to = "2026-05-22")
+    val WORKLOG_SUMMARY = WorklogSummary(total = 21, inN = 9, outN = 12, from = "2026-04-22", to = "2026-05-22")
 
     val RECENT: List<Movement> get() = WORKLOG.take(3)
 
