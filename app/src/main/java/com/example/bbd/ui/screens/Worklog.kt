@@ -208,7 +208,7 @@ private fun WorklogApiRow(o: SalesOrderSummaryDto) {
                 Text("입고완료", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = T.green)
             }
             Spacer(Modifier.size(3.dp))
-            Text(o.toWarehouseName ?: o.toWarehouseCode ?: "", fontSize = 12.sp, color = T.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(o.toWarehouseName ?: o.toWarehouseCode ?: "—", fontSize = 12.sp, color = T.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(if (o.totalAmount == null) "—" else "%,d원".format(o.totalAmount.toLong()), fontFamily = Mono, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
