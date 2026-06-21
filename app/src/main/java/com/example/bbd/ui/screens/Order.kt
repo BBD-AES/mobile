@@ -129,9 +129,12 @@ fun OrderScreen(nav: Nav) {
         }
 
         CreateSheet(open = create, onClose = { create = false }) { draft ->
-            // 기존 발주 번호 최댓값 + 1 → 시드/재제출과 충돌 없는 고유 ID
-            val maxN = list.mapNotNull { it.id.substringAfterLast('-').toIntOrNull() }.maxOrNull() ?: 42
-            val newPr = draft.copy(id = "PR-2026-%04d".format(maxN + 1))
+            // 올해 prefix 의 기존 발주 번호 최댓값 + 1 → 연도 종속 제거 + prefix 범위로만 채번
+            val prefix = "PR-${java.time.LocalDate.now().year}-"
+            val maxN = list.filter { it.id.startsWith(prefix) }
+                .mapNotNull { it.id.removePrefix(prefix).toIntOrNull() }
+                .maxOrNull() ?: 0
+            val newPr = draft.copy(id = "$prefix%04d".format(maxN + 1))
             list = listOf(newPr) + list
             create = false
             tab = "open"
@@ -277,7 +280,7 @@ private fun androidx.compose.foundation.layout.BoxScope.CreateSheet(open: Boolea
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.blue).clickable {
                     onSubmit(
-                        Pr("", part.sku, part.name, qty, part.unit, PrStatus.REQUESTED, reason, "2026-05-22", "15:20", Seed.USER.name, "본사 승인 대기 중"),
+                        Pr("", part.sku, part.name, qty, part.unit, PrStatus.REQUESTED, reason, java.time.LocalDate.now().toString(), java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")), Seed.USER.name, "본사 승인 대기 중"),
                     )
                     qty = 20; reason = "안전재고 미달"
                 }.padding(vertical = 16.dp),
