@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 게이트웨이 REST 호출용. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- cleartext(http) 허용은 디버그 빌드 전용 → app/src/debug/AndroidManifest.xml. 릴리스는 https 만. -->
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

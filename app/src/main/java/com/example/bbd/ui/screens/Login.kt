@@ -47,7 +47,8 @@ import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
 
-private data class LoginError(val title: String, val body: String, val web: Boolean)
+private enum class ErrField { EMP, PW }
+private data class LoginError(val title: String, val body: String, val web: Boolean, val field: ErrField = ErrField.EMP)
 
 @Composable
 fun LoginScreen(onLogin: () -> Unit) {
@@ -57,13 +58,20 @@ fun LoginScreen(onLogin: () -> Unit) {
 
     fun submit() {
         when (val r = Seed.gate(emp)) {
-            is LoginResult.Unknown -> err = LoginError("등록되지 않은 사번입니다.", "사번을 확인해 주세요.", web = false)
+            is LoginResult.Unknown -> err = LoginError("등록되지 않은 사번입니다.", "사번을 확인해 주세요.", web = false, field = ErrField.EMP)
             is LoginResult.Blocked -> {
                 val u = r.user
                 val role = u.position.ifEmpty { u.role }
-                err = LoginError("모바일 이용 불가 계정", "${u.name} · $role — ${u.block}", web = true)
+                err = LoginError("모바일 이용 불가 계정", "${u.name} · $role — ${u.block}", web = true, field = ErrField.EMP)
             }
-            is LoginResult.Allowed -> { err = null; onLogin() }
+            is LoginResult.Allowed -> {
+                if (pw.isBlank()) {
+                    err = LoginError("비밀번호를 입력해 주세요.", "비밀번호를 확인해 주세요.", web = false, field = ErrField.PW)
+                    return
+                }
+                err = null
+                onLogin()
+            }
         }
     }
 
@@ -94,14 +102,14 @@ fun LoginScreen(onLogin: () -> Unit) {
                 FieldLabel("사번")
                 LoginField(
                     value = emp, onValue = { emp = it; err = null }, placeholder = "BR000",
-                    mono = true, isError = err != null, password = false,
+                    mono = true, isError = err?.field == ErrField.EMP, password = false,
                 )
                 Spacer(Modifier.size(14.dp))
 
                 FieldLabel("비밀번호")
                 LoginField(
-                    value = pw, onValue = { pw = it }, placeholder = "비밀번호 입력",
-                    mono = false, isError = false, password = true,
+                    value = pw, onValue = { pw = it; err = null }, placeholder = "비밀번호 입력",
+                    mono = false, isError = err?.field == ErrField.PW, password = true,
                 )
                 Spacer(Modifier.size(if (err != null) 14.dp else 24.dp))
 

@@ -3,7 +3,6 @@ package com.example.bbd.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,19 +66,6 @@ fun Modifier.topBorder(color: Color = T.line, height: Dp = 1.dp): Modifier = dra
     val h = height.toPx()
     drawLine(color, Offset(0f, h / 2), Offset(size.width, h / 2), strokeWidth = h)
 }
-
-/** 리플 없는 탭 (스크림·셀 등). */
-fun Modifier.tapNoRipple(onClick: () -> Unit): Modifier = composedTap(onClick)
-
-private fun Modifier.composedTap(onClick: () -> Unit): Modifier = this.then(
-    Modifier.clickable(
-        interactionSource = NoRippleSource,
-        indication = null,
-        onClick = onClick,
-    )
-)
-
-private val NoRippleSource = MutableInteractionSource()
 
 // ───────────────────────── 텍스트 ─────────────────────────
 

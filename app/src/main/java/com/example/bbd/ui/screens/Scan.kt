@@ -64,7 +64,6 @@ import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.topBorder
 import com.example.bbd.ui.theme.Mono
-import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -270,7 +269,7 @@ private fun ScanForm(nav: Nav, isOut: Boolean, part: Part, title: String, chip: 
                         Text("$qty", fontFamily = Mono, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = if (over) T.red else T.ink)
                         Text(" ${part.unit}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink3)
                     }
-                    StepBtn("plus", 64.dp) { qty++ }
+                    StepBtn("plus", 64.dp) { qty = (qty + 1).coerceAtMost(999) }
                 }
                 if (over) {
                     Spacer(Modifier.size(8.dp))
