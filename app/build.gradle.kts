@@ -12,6 +12,14 @@ val bbdBaseUrl = (project.findProperty("BBD_BASE_URL") as? String) ?: "http://10
 // USE_API 는 boolean BuildConfig 필드 → 반드시 "true"/"false" 리터럴로 정규화(임의 문자열 codegen 깨짐 방지).
 val bbdUseApi = ((project.findProperty("BBD_USE_API") as? String)?.toBoolean() ?: false).toString()
 
+// Keycloak OIDC 설정(운영팀 제공값 기본, gradle property 로 오버라이드 가능). client-secret 없음(public/PKCE).
+val authIssuer = (project.findProperty("BBD_AUTH_ISSUER") as? String) ?: "https://bbd-keycloak.inwoohub.com/auth/realms/bbd"
+val authClientId = (project.findProperty("BBD_AUTH_CLIENT_ID") as? String) ?: "bbd-mobile-android"
+val authRedirect = (project.findProperty("BBD_AUTH_REDIRECT") as? String) ?: "com.bbd.mobile:/oauth2redirect"
+val authEndSession = (project.findProperty("BBD_AUTH_END_SESSION_REDIRECT") as? String) ?: "com.bbd.mobile:/logout"
+val authScopes = (project.findProperty("BBD_AUTH_SCOPES") as? String) ?: "openid email bbd-claims"
+val authRedirectScheme = (project.findProperty("BBD_AUTH_REDIRECT_SCHEME") as? String) ?: "com.bbd.mobile"
+
 android {
     namespace = "com.example.bbd"
     compileSdk {
@@ -31,6 +39,14 @@ android {
 
         buildConfigField("String", "BASE_URL", "\"$bbdBaseUrl\"")
         buildConfigField("boolean", "USE_API", bbdUseApi)
+
+        buildConfigField("String", "AUTH_ISSUER", "\"$authIssuer\"")
+        buildConfigField("String", "AUTH_CLIENT_ID", "\"$authClientId\"")
+        buildConfigField("String", "AUTH_REDIRECT", "\"$authRedirect\"")
+        buildConfigField("String", "AUTH_END_SESSION_REDIRECT", "\"$authEndSession\"")
+        buildConfigField("String", "AUTH_SCOPES", "\"$authScopes\"")
+        // AppAuth RedirectUriReceiverActivity 가 이 scheme 으로 리다이렉트를 받음(redirect URI 의 scheme 과 일치).
+        manifestPlaceholders["appAuthRedirectScheme"] = authRedirectScheme
     }
 
     buildTypes {
@@ -74,6 +90,9 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp.logging)
     implementation(libs.coroutines.android)
+
+    // 인증 (Keycloak OIDC · AppAuth)
+    implementation(libs.appauth)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
