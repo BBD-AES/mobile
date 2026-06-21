@@ -477,10 +477,11 @@ private fun ScanReceiveScreen(nav: Nav) {
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (enabled) T.blue else T.line)
                         .clickable(enabled = enabled) {
+                            val so = code.trim()   // suspend 경계 전에 한 번 캡처(제출 중 입력 변경과 무관)
                             submitting = true; error = null
                             scope.launch {
-                                when (val r = repo.receive(code.trim())) {
-                                    is UiState.Success -> { submitting = false; toast = "입고 확정 완료 · ${code.trim()}" }
+                                when (val r = repo.receive(so)) {
+                                    is UiState.Success -> { submitting = false; toast = "입고 확정 완료 · $so" }
                                     is UiState.Error -> { submitting = false; error = r.message }
                                     else -> submitting = false
                                 }
