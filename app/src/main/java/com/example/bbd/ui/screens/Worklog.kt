@@ -38,9 +38,24 @@ import com.example.bbd.ui.Nav
 import com.example.bbd.ui.Screen
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.T
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.bbd.BuildConfig
+import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.remote.dto.SalesOrderSummaryDto
+import com.example.bbd.data.repo.SalesOrderRepository
+import com.example.bbd.ui.state.EmptyState
+import com.example.bbd.ui.state.ErrorState
+import com.example.bbd.ui.state.LoadingRows
 
 @Composable
 fun WorklogScreen(nav: Nav) {
+    if (BuildConfig.USE_API) WorklogScreenApi(nav) else WorklogScreenMock(nav)
+}
+
+@Composable
+private fun WorklogScreenMock(nav: Nav) {
     var q by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("all") }
     var sel by remember { mutableStateOf<String?>(null) }
@@ -130,5 +145,78 @@ private fun WChip(label: String, icon: String?, count: Int, on: Boolean, onClick
         if (icon != null) BbdIcon(icon, 15.dp, if (on) Color.White else T.ink3, sw = 2f)
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else T.ink2)
         Text("$count", fontFamily = Mono, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else T.ink3)
+    }
+}
+
+// ───────────────────────── 실 API 경로 (USE_API) ─────────────────────────
+// sales GET /api/v1/sales-orders?received_by={emp} 로 내가 입고 확인한 발주 로드.
+// 요약 응답엔 라인이 없어 주문 단위 행으로 렌더(부품 단위 추측 금지). 인증 토큰 필요.
+
+@Composable
+private fun WorklogScreenApi(nav: Nav) {
+    val repo = remember { SalesOrderRepository() }
+    var reloadKey by remember { mutableStateOf(0) }
+    val state by produceState<UiState<List<SalesOrderSummaryDto>>>(UiState.Loading, reloadKey) {
+        value = UiState.Loading
+        value = repo.receivedByMe(Seed.USER.emp)
+    }
+    Screen(header = { Header(title = "내 작업 이력", back = true, right = HeaderRight.BELL, onBack = { nav.pop() }) }) {
+        when (val s = state) {
+            is UiState.Loading -> LoadingRows()
+            is UiState.Error -> ErrorState(s.message, onRetry = { reloadKey++ })
+            is UiState.Success -> {
+                val items = s.data
+                if (items.isEmpty()) {
+                    EmptyState("list", "입고 확인 기록이 없습니다", "도착 발주를 입고 확인하면 여기에 표시됩니다.")
+                } else {
+                    Row {
+                        Text("내가 입고 확인한 발주 · 총 ", fontSize = 12.sp, color = T.ink3, fontFamily = Mono)
+                        Text("${items.size}건", fontSize = 12.sp, color = T.ink2, fontFamily = Mono, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.size(14.dp))
+                    val groups = linkedMapOf<String, MutableList<SalesOrderSummaryDto>>()
+                    items.forEach { o ->
+                        val day = (o.receivedAt ?: "").take(10).ifBlank { "-" }
+                        groups.getOrPut(day) { mutableListOf() }.add(o)
+                    }
+                    groups.forEach { (day, rows) ->
+                        Text(day, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T.ink3, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            rows.forEach { WorklogApiRow(it) }
+                        }
+                        Spacer(Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorklogApiRow(o: SalesOrderSummaryDto) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(T.card)
+            .border(1.dp, T.line, RoundedCornerShape(16.dp)).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(36.dp).clip(CircleShape).background(T.blueSoft), contentAlignment = Alignment.Center) {
+            BbdIcon("arrowDn", 18.dp, T.blue, sw = 2f)
+        }
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(o.soNumber ?: "-", fontFamily = Mono, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T.ink)
+                Text("입고완료", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = T.green)
+            }
+            Spacer(Modifier.size(3.dp))
+            Text(o.toWarehouseName ?: o.toWarehouseCode ?: "—", fontSize = 12.sp, color = T.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(if (o.totalAmount == null) "—" else "%,d원".format(o.totalAmount.toLong()), fontFamily = Mono, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
+            val time = (o.receivedAt ?: "").drop(11).take(5)
+            if (time.isNotBlank()) {
+                Spacer(Modifier.size(2.dp))
+                Text(time, fontFamily = Mono, fontSize = 11.sp, color = T.ink3)
+            }
+        }
     }
 }
