@@ -53,6 +53,14 @@ import com.example.bbd.ui.topBorder
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
+import androidx.compose.runtime.produceState
+import com.example.bbd.BuildConfig
+import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.remote.dto.SalesOrderSummaryDto
+import com.example.bbd.data.repo.SalesOrderRepository
+import com.example.bbd.ui.state.EmptyState
+import com.example.bbd.ui.state.ErrorState
+import com.example.bbd.ui.state.LoadingRows
 
 private data class PrMeta(val bg: Color, val fg: Color, val dot: Color)
 
@@ -66,6 +74,11 @@ private fun prMeta(s: PrStatus): PrMeta = when (s) {
 
 @Composable
 fun OrderScreen(nav: Nav) {
+    if (BuildConfig.USE_API) OrderScreenApi(nav) else OrderScreenMock(nav)
+}
+
+@Composable
+private fun OrderScreenMock(nav: Nav) {
     var tab by remember { mutableStateOf("open") }
     var create by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf("") }
@@ -287,3 +300,104 @@ private fun androidx.compose.foundation.layout.BoxScope.CreateSheet(open: Boolea
         }
     }
 }
+
+// ───────────────────────── 실 API 경로 (USE_API) ─────────────────────────
+// sales GET /api/v1/sales-orders 로 내 지점 보충 발주 로드 → 로딩/에러/빈/목록.
+// 요약 응답엔 라인이 없어 주문 단위 카드로 렌더(부품 단위 추측 금지). 작성(POST)·라인 상세·인증은 후속.
+
+@Composable
+private fun OrderScreenApi(nav: Nav) {
+    val repo = remember { SalesOrderRepository() }
+    var reloadKey by remember { mutableStateOf(0) }
+    val state by produceState<UiState<List<SalesOrderSummaryDto>>>(UiState.Loading, reloadKey) {
+        value = UiState.Loading
+        value = repo.branchOrders(Seed.USER.warehouse)
+    }
+    Column(Modifier.fillMaxSize().background(T.bg)) {
+        Header(title = "보충 발주 요청", back = true, right = HeaderRight.BELL, onBack = { nav.pop() })
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 28.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth().bbdCard().padding(horizontal = 15.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(T.blueSoft), contentAlignment = Alignment.Center) {
+                    BbdIcon("pin", 19.dp, T.blue)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(Seed.USER.branch, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
+                    Spacer(Modifier.size(2.dp))
+                    Text("본사로 보충을 요청합니다", fontSize = 12.sp, color = T.ink3)
+                }
+                CodeText(Seed.USER.warehouse, size = 12.sp)
+            }
+            Spacer(Modifier.size(14.dp))
+
+            when (val s = state) {
+                is UiState.Loading -> LoadingRows()
+                is UiState.Error -> ErrorState(s.message, onRetry = { reloadKey++ })
+                is UiState.Success ->
+                    if (s.data.isEmpty()) {
+                        EmptyState("list", "보충 발주가 없습니다", "본사로 보낸 보충 발주 요청이 여기에 표시됩니다.")
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                            s.data.forEach { OrderApiCard(it) }
+                        }
+                    }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OrderApiCard(o: SalesOrderSummaryDto) {
+    Column(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 15.dp, vertical = 14.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            CodeText(o.soNumber ?: "-", size = 13.sp, color = T.ink)
+            Spacer(Modifier.weight(1f))
+            SoStatusChip(o.status)
+        }
+        Spacer(Modifier.size(10.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(o.toWarehouseName ?: o.toWarehouseCode ?: "", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!o.note.isNullOrBlank()) {
+                    Spacer(Modifier.size(3.dp))
+                    Text(o.note!!, fontSize = 12.sp, color = T.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Spacer(Modifier.size(10.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(wonText(o.totalAmount), fontFamily = Mono, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
+                Spacer(Modifier.size(2.dp))
+                CodeText((o.requestedAt ?: "").take(10), size = 11.5.sp, color = T.ink3)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SoStatusChip(status: String?) {
+    val label: String; val bg: Color; val fg: Color; val dot: Color
+    when (status) {
+        "REQUESTED" -> { label = "요청"; bg = T.lineSoft; fg = T.ink2; dot = T.ink3 }
+        "SUBMITTED" -> { label = "제출"; bg = T.blueSoft; fg = T.blueInk; dot = T.blue }
+        "IN_FULFILLMENT" -> { label = "처리중"; bg = T.blueSoft; fg = T.blueInk; dot = T.blue }
+        "BACKORDERED" -> { label = "백오더"; bg = T.amberBlockBg; fg = T.amberBlockTitle; dot = T.amber }
+        "RECEIVED" -> { label = "입고완료"; bg = T.receivedBg; fg = T.receivedFg; dot = T.green }
+        "REJECTED" -> { label = "반려"; bg = T.redSoft; fg = T.redBlockTitle; dot = T.red }
+        "CANCELED" -> { label = "취소"; bg = T.lineSoft; fg = T.ink3; dot = T.ink3 }
+        else -> { label = status ?: "-"; bg = T.lineSoft; fg = T.ink2; dot = T.ink3 }
+    }
+    Row(
+        Modifier.clip(RoundedCornerShape(999.dp)).background(bg).padding(horizontal = 9.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(dot))
+        Text(label, color = fg, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, fontFamily = Pretendard)
+    }
+}
+
+private fun wonText(v: Double?): String = if (v == null) "—" else "%,d원".format(v.toLong())
