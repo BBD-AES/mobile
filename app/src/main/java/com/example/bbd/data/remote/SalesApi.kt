@@ -8,13 +8,13 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * sales 서비스 REST. 게이트웨이 prefix(/sales)는 [BuildConfig.BASE_URL] 에 포함되므로
- * 여기 경로는 컨트롤러 @RequestMapping("/api/v1/sales-orders") 기준 상대경로.
+ * sales 서비스 REST. BASE_URL=게이트웨이 루트라 경로에 서비스 prefix(sales/) 포함.
+ * 컨트롤러 @RequestMapping("/api/v1/sales-orders") · 게이트웨이 prefix /sales.
  */
 interface SalesApi {
 
     /** 보충 발주(판매주문) 목록 검색. 모든 파라미터 선택. */
-    @GET("api/v1/sales-orders")
+    @GET("sales/api/v1/sales-orders")
     suspend fun search(
         @Query("status") status: String? = null,
         @Query("to_warehouse_code") toWarehouseCode: String? = null,
@@ -25,6 +25,6 @@ interface SalesApi {
     ): SalesOrderPageDto
 
     /** 도착 확인(입고 확정): IN_FULFILLMENT → RECEIVED. */
-    @PATCH("api/v1/sales-orders/{soNumber}/receive")
+    @PATCH("sales/api/v1/sales-orders/{soNumber}/receive")
     suspend fun receive(@Path("soNumber") soNumber: String): Response<Unit>
 }
