@@ -4,6 +4,8 @@
 
     <!-- 게이트웨이 REST 호출용. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 바코드/QR 입고 스캔용. -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- cleartext(http) 허용은 디버그 빌드 전용 → app/src/debug/AndroidManifest.xml. 릴리스는 https 만. -->
     <application
