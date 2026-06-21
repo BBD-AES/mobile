@@ -72,7 +72,8 @@ fun SoRow(
     divider: Boolean = false,
 ) {
     val tot = so.totals()
-    val head = so.lines.first().name + (if (tot.items > 1) " 외 ${tot.items - 1}" else "")
+    // API 모드 요약 SO 는 lines 가 비어있을 수 있음 → first() 크래시 방지(없으면 SO번호로 대체).
+    val head = (so.lines.firstOrNull()?.name ?: so.so) + (if (tot.items > 1) " 외 ${tot.items - 1}" else "")
     var mod = Modifier.fillMaxWidth()
     if (onClick != null) mod = mod.clickable(onClick = onClick)
     if (divider) mod = mod.bottomBorder(T.lineSoft)

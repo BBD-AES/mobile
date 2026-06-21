@@ -82,7 +82,8 @@ private fun WorklogScreenSeed(nav: Nav, contentPad: PaddingValues) {
             Header(
                 title = "내 작업 이력", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
                 onRefresh = { app.refresh() }, refreshing = app.refreshing, lastRefresh = app.lastRefresh,
-                onBack = { nav.pop() }, onRight = nav.openQueue,
+                // 작업이력은 탭 루트라 pop() 이 무동작 → 재고/마이 탭과 동일하게 홈 탭으로.
+                onBack = { nav.tab("home") }, onRight = nav.openQueue,
             )
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),

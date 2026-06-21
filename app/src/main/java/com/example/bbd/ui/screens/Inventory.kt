@@ -143,7 +143,7 @@ private fun InventoryBody(
                 Spacer(Modifier.size(12.dp))
 
                 // 필터 칩 — 가로 스크롤. 선택 칩 = blueSoft/#c9d6f7/blueInk.
-                FilterChips(filter, { filter = it }, summary, categories, apiMode)
+                FilterChips(filter, { filter = it }, parts, summary, categories, apiMode)
                 Spacer(Modifier.size(14.dp))
 
                 if (filter != "all") {
@@ -203,16 +203,17 @@ private fun InventorySearch(value: String, onValue: (String) -> Unit, onScan: ()
 }
 
 @Composable
-private fun FilterChips(filter: String, onPick: (String) -> Unit, summary: InvSummary, categories: List<String>, apiMode: Boolean) {
+private fun FilterChips(filter: String, onPick: (String) -> Unit, parts: List<Part>, summary: InvSummary, categories: List<String>, apiMode: Boolean) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        FilterChip("전체", filter == "all", count = if (apiMode) Seed.PARTS.size else summary.total) { onPick("all") }
+        // 전체/카테고리 카운트는 실데이터(parts·summary)에서 — API 모드도 시드(Seed.PARTS)가 아니라 fetch 결과 기준.
+        FilterChip("전체", filter == "all", count = summary.total) { onPick("all") }
         if (!apiMode) {
             FilterChip("정상", filter == "정상", count = summary.ok, icon = "check", iconColor = T.green) { onPick("정상") }
             FilterChip("부족", filter == "부족", count = summary.short, icon = "alert", iconColor = T.amber) { onPick("부족") }
             FilterChip("없음", filter == "없음", count = summary.none, icon = "ban", iconColor = T.red) { onPick("없음") }
         }
         categories.forEach { c ->
-            val n = if (apiMode) Seed.PARTS.count { it.cat == c } else null
+            val n = if (apiMode) parts.count { it.cat == c } else null
             FilterChip(c, filter == c, count = n) { onPick(c) }
         }
     }
