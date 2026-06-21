@@ -41,7 +41,8 @@ object Net {
 
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
-            .baseUrl(BuildConfig.BASE_URL)
+            // Retrofit 은 base URL 끝에 '/' 필수 — gradle property 로 들어온 값 정규화.
+            .baseUrl(BuildConfig.BASE_URL.let { if (it.endsWith("/")) it else "$it/" })
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
