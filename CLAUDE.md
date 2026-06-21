@@ -17,7 +17,7 @@ SDK=$HOME/Library/Android/sdk
 "$SDK/platform-tools/adb" install -r app/build/outputs/apk/debug/app-debug.apk
 "$SDK/platform-tools/adb" shell am start -n com.example.bbd/.MainActivity
 ```
-로그인: 사번 `BR002`(정민수·정비사) 입력 후 로그인(비밀번호 검증 없음 — 데모). 모바일 허용 계정은 `BR002`(정비사)·`BR001`(점장)뿐.
+로그인: 사번 `BR002`(정민수·정비사) + 임의 비밀번호(비어있지 않으면 통과 — 데모) 입력 후 로그인. 모바일 허용 계정은 `BR002`(정비사)·`BR001`(점장)뿐.
 
 ## 구조
 ```
