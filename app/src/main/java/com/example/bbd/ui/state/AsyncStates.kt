@@ -74,21 +74,68 @@ fun ErrorState(message: String, onRetry: (() -> Unit)? = null, modifier: Modifie
     }
 }
 
-/** 빈 상태 — 아이콘 + 제목 + 보조문. */
+/** 빈 상태 — 아이콘 + 제목 + 보조문 + (선택)행동. */
 @Composable
-fun EmptyState(icon: String, title: String, sub: String? = null, modifier: Modifier = Modifier) {
+fun EmptyState(
+    icon: String,
+    title: String,
+    sub: String? = null,
+    modifier: Modifier = Modifier,
+    action: (@Composable () -> Unit)? = null,
+) {
     Column(
-        modifier.fillMaxWidth().padding(vertical = 46.dp),
+        modifier.fillMaxWidth().padding(top = 46.dp, bottom = 40.dp, start = 24.dp, end = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(52.dp).clip(CircleShape).background(T.line), contentAlignment = Alignment.Center) {
-            BbdIcon(icon, 26.dp, T.ink3, sw = 1.9f)
+        Box(Modifier.size(60.dp).clip(RoundedCornerShape(18.dp)).background(T.lineSoft), contentAlignment = Alignment.Center) {
+            BbdIcon(icon, 28.dp, T.ink3Read, sw = 1.7f)
         }
         Spacer(Modifier.height(14.dp))
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = T.ink2, fontFamily = Pretendard)
+        Text(title, fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, fontFamily = Pretendard)
         if (sub != null) {
             Spacer(Modifier.height(5.dp))
-            Text(sub, fontSize = 12.5.sp, color = T.ink3, textAlign = TextAlign.Center, fontFamily = Pretendard)
+            Text(sub, fontSize = 13.sp, color = T.ink3Read, textAlign = TextAlign.Center, lineHeight = 20.sp, fontFamily = Pretendard)
         }
+        if (action != null) {
+            Spacer(Modifier.height(16.dp))
+            action()
+        }
+    }
+}
+
+/** 단일 스켈레톤 행(카드 + 원형 + 2줄). */
+@Composable
+fun RowSkeleton() {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(T.card).border(1.dp, T.line, RoundedCornerShape(16.dp)).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
+        Box(Modifier.size(38.dp).clip(CircleShape).background(T.line))
+        Column(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth(0.52f).height(13.dp).clip(RoundedCornerShape(5.dp)).background(T.line))
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth(0.78f).height(11.dp).clip(RoundedCornerShape(5.dp)).background(T.lineSoft))
+        }
+    }
+}
+
+/**
+ * API 모드 3-상태(로딩/에러/빈/정상) 게이트 — 디자인 시스템 3-상태 명세.
+ * 실 화면은 UiState(Loading/Error/Success) 를 직접 분기하되 동일 컴포넌트(LoadingRows·ErrorState·EmptyState)로 렌더한다.
+ */
+@Composable
+fun <T> StateGate(
+    state: com.example.bbd.data.remote.UiState<List<T>>,
+    rows: Int = 4,
+    onRetry: () -> Unit,
+    empty: @Composable () -> Unit,
+    content: @Composable (List<T>) -> Unit,
+) {
+    when (state) {
+        is com.example.bbd.data.remote.UiState.Loading -> LoadingRows(rows)
+        is com.example.bbd.data.remote.UiState.Error -> ErrorState(state.message, onRetry)
+        is com.example.bbd.data.remote.UiState.Success ->
+            if (state.data.isEmpty()) empty() else content(state.data)
     }
 }

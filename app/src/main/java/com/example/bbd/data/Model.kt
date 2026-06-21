@@ -1,8 +1,5 @@
 package com.example.bbd.data
 
-/** 재고 이동 유형 — 입고 / 출고(표시 전용). 모바일 쓰기 진입점은 입고(SO receive)뿐. */
-enum class MoveType { IN, OUT }
-
 /** 재고 상태 — 현재고 vs 안전재고. */
 enum class StockStatus(val label: String) {
     SHORT("부족"), NONE("없음"), OK("정상");
@@ -31,45 +28,66 @@ data class Part(
     val wh: String,
 )
 
-/** 재고 이동(작업) 이력 1건. */
-data class Movement(
-    val type: MoveType,
-    val label: String,
-    val delta: Int,
-    val unit: String,
-    val sku: String,
-    val name: String,
-    val day: String,
-    val date: String,
-    val time: String,
-)
-
-/** 보충 발주 상태 — 본사 결정. 모바일은 표시 전용. */
-enum class PrStatus(val label: String, val sub: String, val step: Int) {
-    REQUESTED("요청됨", "본사 승인 대기", 1),
-    APPROVED("승인됨", "배송 준비", 2),
-    SHIPPED("배송중", "도착 예정", 3),
-    RECEIVED("입고완료", "처리 종료", 4),
-    REJECTED("거절됨", "본사 반려", 0);
-
-    val isOpen: Boolean get() = this == REQUESTED || this == APPROVED || this == SHIPPED
-    val isDone: Boolean get() = this == RECEIVED || this == REJECTED
-}
-
-/** 보충 발주 요청 1건 (지점→본사). */
-data class Pr(
-    val id: String,
+/** 발주(SalesOrder) 한 라인 — 부품 단위 품목·수량. */
+data class SoLine(
     val sku: String,
     val name: String,
     val qty: Int,
     val unit: String,
-    val status: PrStatus,
-    val reason: String,
+    val thumb: String,
+)
+
+/**
+ * 판매주문(SalesOrder) 1건 — 모바일 관심 상태는 IN_FULFILLMENT(도착 대기)·RECEIVED(입고 완료).
+ * 입고 확정은 주문 단위(PATCH /sales-orders/{so}/receive)라 화면 모델도 주문 단위.
+ */
+data class SalesOrder(
+    val so: String,
+    val status: String,       // SalesOrderStatus enum name
+    val fromWh: String,
+    val fromCode: String = "",
+    val toCode: String = "WH-BR-001",
+    val date: String = "",    // RECEIVED 도착 확인일(ISO date)
+    val time: String = "",
+    val lines: List<SoLine>,
+)
+
+/** 부품 상세 '최근 입고' 1행(RECEIVED 발주에서 해당 SKU 파생). */
+data class RecentReceive(
+    val so: String,
+    val qty: Int,
+    val unit: String,
     val date: String,
     val time: String,
-    val by: String,
-    val note: String,
 )
+
+/** SO 한 건의 합계(품목 수 · 총 수량 · 단일 라인이면 단위). */
+data class SoTotals(val items: Int, val qty: Int, val unit: String)
+
+fun SalesOrder.totals(): SoTotals {
+    val qty = lines.sumOf { it.qty }
+    val unit = if (lines.size == 1) lines.first().unit else ""
+    return SoTotals(lines.size, qty, unit)
+}
+
+/** SO 상태 enum → 안내북 표기(라벨·배지 색). */
+enum class SoStatusMeta(
+    val key: String,
+    val label: String,
+    val sub: String,
+) {
+    IN_FULFILLMENT("IN_FULFILLMENT", "도착 대기", "출고되어 이동 중"),
+    RECEIVED("RECEIVED", "입고 완료", "도착 확인 완료"),
+    REQUESTED("REQUESTED", "요청됨", "본사 검토 대기"),
+    SUBMITTED("SUBMITTED", "제출됨", "처리 대기"),
+    BACKORDERED("BACKORDERED", "백오더", "재고 부족 대기"),
+    REJECTED("REJECTED", "거절됨", "본사 반려"),
+    CANCELED("CANCELED", "취소됨", "처리 취소");
+
+    companion object {
+        fun of(key: String?): SoStatusMeta? = entries.firstOrNull { it.key == key }
+    }
+}
 
 /** 로그인 게이팅용 사용자 계정 (시드 users.csv). */
 data class UserAccount(
@@ -82,12 +100,13 @@ data class UserAccount(
     val block: String? = null,
 )
 
-/** 로그인한 현재 사용자(정민수). */
+/** 로그인한 현재 사용자(정비사 BR002 또는 점장 BR001). */
 data class CurrentUser(
     val name: String,
     val role: String,
     val position: String,
     val emp: String,
+    val email: String,
     val branch: String,
     val branchCode: String,
     val warehouse: String,
@@ -96,8 +115,40 @@ data class CurrentUser(
     val pwDaysAgo: Int,
 )
 
+/** 역할별 모바일 이용 권한(마이 > 이용 권한). can=모바일 가능 / web=웹 ERP에서 / cant=불가. */
+data class RolePerms(
+    val can: List<String>,
+    val web: List<String>,
+    val cant: List<String>,
+)
+
 data class InvSummary(val total: Int, val short: Int, val none: Int, val ok: Int)
-data class WorklogSummary(val total: Int, val inN: Int, val outN: Int, val from: String, val to: String)
+
+// ────────── 날짜 표시 헬퍼 — ISO date만 보유, 표시 시점에 기준일 기준 상대 라벨 계산 ──────────
+private fun isoToEpochDay(iso: String): Long? = runCatching {
+    java.time.LocalDate.parse(iso).toEpochDay()
+}.getOrNull()
+
+/** 기준일(today, 기본 DEMO_TODAY) 대비 며칠 전인지. 음수=미래. */
+fun daysSince(iso: String, today: String = Seed.DEMO_TODAY): Long? {
+    val d = isoToEpochDay(iso) ?: return null
+    val t = isoToEpochDay(today) ?: return null
+    return t - d
+}
+
+/** 상대 날짜 라벨(오늘/어제/N일 전/M월 D일). */
+fun relDay(iso: String, today: String = Seed.DEMO_TODAY): String {
+    val n = daysSince(iso, today) ?: return ""
+    return when {
+        n <= 0 -> "오늘"
+        n == 1L -> "어제"
+        n < 7 -> "${n}일 전"
+        else -> runCatching {
+            val d = java.time.LocalDate.parse(iso)
+            "${d.monthValue}월 ${d.dayOfMonth}일"
+        }.getOrDefault(iso)
+    }
+}
 
 /** 로그인 게이팅 결과. */
 sealed interface LoginResult {
