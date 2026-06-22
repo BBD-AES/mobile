@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,7 +23,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,9 +41,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.bbd.data.Movement
-import com.example.bbd.data.MoveType
-import com.example.bbd.data.Seed
 import com.example.bbd.data.StockStatus
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
@@ -97,11 +98,11 @@ private fun DotPill(bg: Color, fg: Color, dot: Color, text: String, fontSize: Te
     }
 }
 
-/** 재고 상태 칩 (부족/없음/정상). */
+/** 재고 상태 칩 — 신호색 3단: 정상=초록 / 부족=amber / 없음=빨강. (파랑은 주행동 전용) */
 @Composable
 fun StatusPill(status: StockStatus) {
     when (status) {
-        StockStatus.SHORT -> DotPill(T.blueSoft, T.blueInk, T.blue, status.label)
+        StockStatus.SHORT -> DotPill(T.amberSoft, T.amberInk, T.amber, status.label)
         StockStatus.NONE -> DotPill(T.redSoft, T.red, T.red, status.label)
         StockStatus.OK -> DotPill(T.lineSoft, T.ink2, T.green, status.label)
     }
@@ -113,23 +114,24 @@ fun SummaryPill(bg: Color, fg: Color, dot: Color, text: String) = DotPill(bg, fg
 
 // ───────────────────────── 헤더 ─────────────────────────
 
-enum class HeaderRight { NONE, BELL, MANUAL }
+enum class HeaderRight { NONE, QUEUE, MANUAL }
 
 @Composable
 fun IconBtn(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick),
+        Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
 
+/** 도착 대기 큐 진입점 — 벨 아님(트럭 = 이동 중) + 중립 파랑 카운트 배지. amber 금지. */
 @Composable
-fun BellBtn(count: Int = Seed.NOTIF, onClick: () -> Unit) {
-    Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        BbdIcon("bell", 22.dp, T.ink)
+fun QueueBtn(count: Int, onClick: () -> Unit) {
+    Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        BbdIcon("truck", 23.dp, T.ink, sw = 1.9f)
         if (count > 0) {
             Box(
-                Modifier.align(Alignment.TopEnd).padding(top = 1.dp, end = 1.dp)
+                Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 2.dp)
                     .size(17.dp).clip(CircleShape).background(Color.White).padding(2.dp)
                     .clip(CircleShape).background(T.blue),
                 contentAlignment = Alignment.Center,
@@ -140,19 +142,32 @@ fun BellBtn(count: Int = Seed.NOTIF, onClick: () -> Unit) {
     }
 }
 
+/** "방금 / N분 전 / N시간 전" 상대 갱신 라벨. */
+fun agoLabel(ms: Long): String {
+    if (ms <= 0) return ""
+    val s = ((System.currentTimeMillis() - ms) / 1000).coerceAtLeast(0)
+    if (s < 45) return "방금"
+    val m = (s / 60.0).toInt().coerceAtLeast(1)
+    if (m < 60) return "${m}분 전"
+    return "${(m / 60.0).toInt().coerceAtLeast(1)}시간 전"
+}
+
 @Composable
 fun Header(
     title: String,
     back: Boolean = false,
     chip: String? = null,
     right: HeaderRight = HeaderRight.NONE,
-    notif: Int = Seed.NOTIF,
+    queueCount: Int = 0,
+    onRefresh: (() -> Unit)? = null,
+    refreshing: Boolean = false,
+    lastRefresh: Long = 0L,
     onBack: () -> Unit = {},
     onRight: () -> Unit = {},
 ) {
-    Column(Modifier.fillMaxWidth().background(T.card).bottomBorder()) {
+    Column(Modifier.fillMaxWidth().background(T.card).bottomBorder().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 10.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 12.dp).heightIn(min = 44.dp),
+            Modifier.fillMaxWidth().heightIn(min = 44.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (back) {
@@ -170,8 +185,11 @@ fun Header(
                     }
                 }
             }
+            if (onRefresh != null) {
+                IconBtn(onRefresh) { BbdIcon("refresh", 20.dp, if (refreshing) T.blue else T.ink2) }
+            }
             when (right) {
-                HeaderRight.BELL -> BellBtn(notif, onRight)
+                HeaderRight.QUEUE -> QueueBtn(queueCount, onRight)
                 HeaderRight.MANUAL -> Row(
                     Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onRight).padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -183,117 +201,107 @@ fun Header(
                 HeaderRight.NONE -> {}
             }
         }
+        if (onRefresh != null && lastRefresh > 0L) {
+            Text(
+                "마지막 갱신 ${agoLabel(lastRefresh)}",
+                fontSize = 12.sp, color = T.ink3Read, fontFamily = Pretendard,
+                modifier = Modifier.padding(start = if (back) 50.dp else 10.dp, top = 0.dp),
+            )
+        }
     }
 }
 
 // ───────────────────────── 탭바 ─────────────────────────
 
 private data class Tab(val id: String, val label: String, val icon: String)
+// 4개 루트 탭. 스캔은 탭이 아니라 중앙 FAB(App 셸). 작업이력 탭 신설.
 private val TABS = listOf(
     Tab("home", "홈", "home"),
-    Tab("scan", "스캔", "scan"),
     Tab("inventory", "재고", "box"),
+    Tab("worklog", "작업이력", "list"),
     Tab("my", "마이", "user"),
 )
 
+/** 루트 탭 ID(셸이 TabBar/FAB 노출 여부 판정에 사용). */
+val TAB_ROUTES: Set<String> = TABS.map { it.id }.toSet()
+
 @Composable
 fun TabBar(active: String, onTab: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(T.card).topBorder().padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 6.dp)) {
-        TABS.forEach { t ->
-            val on = active == t.id
-            val c = if (on) T.blue else T.ink3
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).clickable { onTab(t.id) }.padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                BbdIcon(t.icon, 24.dp, c, sw = if (on) 2.1f else 1.8f)
-                Text(t.label, fontSize = 11.5.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.SemiBold, color = c, fontFamily = Pretendard)
-            }
+    // 목적지 4개 + 중앙 FAB 자리(스페이서). 스캔은 탭이 아니라 동작(셸 FAB).
+    Row(Modifier.fillMaxWidth().background(T.card).topBorder().padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 4.dp)) {
+        TABS.take(2).forEach { TabItem(it, active == it.id, Modifier.weight(1f), onTab) }
+        Spacer(Modifier.width(64.dp))
+        TABS.drop(2).forEach { TabItem(it, active == it.id, Modifier.weight(1f), onTab) }
+    }
+}
+
+@Composable
+private fun TabItem(t: Tab, on: Boolean, modifier: Modifier, onTab: (String) -> Unit) {
+    val c = if (on) T.blue else T.tabInactive
+    Box(modifier.clip(RoundedCornerShape(10.dp)).clickable { onTab(t.id) }, contentAlignment = Alignment.TopCenter) {
+        if (on) Box(Modifier.width(22.dp).height(3.dp).clip(RoundedCornerShape(3.dp)).background(T.blue))
+        Column(
+            Modifier.padding(top = 6.dp, bottom = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            BbdIcon(t.icon, 23.dp, c, sw = if (on) 2.1f else 1.8f)
+            Text(t.label, fontSize = 12.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.SemiBold, color = c, fontFamily = Pretendard)
         }
     }
 }
 
 // ───────────────────────── 화면 스캐폴드 ─────────────────────────
 
-/** 헤더 + 스크롤 본문(+선택 탭바). 단순 스크롤 화면용. */
+/** 헤더 + 스크롤 본문. 단순 스크롤 화면용. 탭바는 App 셸이 노출(여기서 그리지 않음).
+ *  탭 루트는 contentPad(셸 탭바 높이)를 받아 본문이 탭바에 가리지 않게 한다. */
 @Composable
 fun Screen(
-    tab: String? = null,
-    onTab: (String) -> Unit = {},
     bg: Color = T.bg,
+    contentPad: PaddingValues = PaddingValues(),
     header: @Composable () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().background(bg)) {
+    Column(Modifier.fillMaxSize().background(bg).padding(contentPad)) {
         header()
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                 .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             content = content,
         )
-        if (tab != null) TabBar(tab, onTab)
     }
 }
 
-// ───────────────────────── 이동(작업) 이력 행 ─────────────────────────
-
+/** 하단 고정 액션바 — 흰 배경 + 상단 보더(루트가 systemBars safe-area 처리). */
 @Composable
-fun MovementRow(
-    m: Movement,
-    showDay: Boolean = true,
-    highlight: Boolean = false,
-    divider: Boolean = false,
-    onClick: (() -> Unit)? = null,
-) {
-    val isIn = m.delta > 0
-    val (circleBg, icon, iconColor) = when (m.type) {
-        MoveType.OUT -> Triple(T.outCircle, "arrowUp", Color.White)
-        MoveType.ADJ -> Triple(T.lineSoft, "plus", T.ink2)
-        MoveType.IN -> Triple(T.blueSoft, "arrowDn", T.blue)
-    }
-    var mod = Modifier.fillMaxWidth()
-    if (onClick != null) mod = mod.clickable(onClick = onClick)
-    if (highlight) {
-        mod = mod.clip(RoundedCornerShape(13.dp)).background(T.hotBg).border(1.5.dp, T.hotBorder, RoundedCornerShape(13.dp))
-    } else if (divider) {
-        mod = mod.bottomBorder(T.lineSoft)
-    }
-    Row(
-        mod.padding(horizontal = if (highlight) 14.dp else 4.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(13.dp),
-    ) {
-        Box(Modifier.size(38.dp).clip(CircleShape).background(circleBg), contentAlignment = Alignment.Center) {
-            BbdIcon(icon, 18.dp, iconColor, sw = 2.1f)
-        }
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text(m.label, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, fontFamily = Pretendard)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        (if (isIn) "+" else "") + m.delta,
-                        fontFamily = Mono, fontSize = 14.5.sp, fontWeight = FontWeight.Bold,
-                        color = if (isIn) T.blue else T.ink,
-                    )
-                    Text(" " + m.unit, fontSize = 11.5.sp, color = T.ink3, fontWeight = FontWeight.SemiBold, fontFamily = Pretendard)
-                }
-            }
-            Spacer(Modifier.size(3.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(m.name + " · ", fontSize = 12.5.sp, color = T.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = Pretendard)
-                CodeText(m.sku, size = 12.sp)
-            }
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            if (showDay) {
-                Text(m.day, fontSize = 11.5.sp, color = T.ink3, fontFamily = Pretendard)
-                Spacer(Modifier.size(2.dp))
-            }
-            CodeText(m.time, size = 12.sp, color = T.ink2)
-        }
-    }
+fun StickyBar(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().background(T.card).topBorder()
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
+        content = content,
+    )
 }
 
 @Composable
 fun RowScope.HSpace(w: Dp) = Spacer(Modifier.width(w))
+
+/** 흰 스피너(버튼 위) — 무한 회전 원호. reduced-motion 정적 표시는 플랫폼 처리. */
+@Composable
+fun Spinner(size: Dp, color: Color = Color.White, track: Color = Color.White.copy(alpha = 0.4f)) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "spin")
+    val angle by transition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "angle",
+    )
+    androidx.compose.foundation.Canvas(Modifier.size(size)) {
+        val sw = 2.5.dp.toPx()
+        val d = this.size.minDimension - sw
+        val tl = androidx.compose.ui.geometry.Offset(sw / 2, sw / 2)
+        val arcSize = androidx.compose.ui.geometry.Size(d, d)
+        drawArc(track, 0f, 360f, false, tl, arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        drawArc(color, angle, 90f, false, tl, arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    }
+}

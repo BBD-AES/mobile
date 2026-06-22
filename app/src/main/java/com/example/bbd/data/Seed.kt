@@ -9,11 +9,45 @@ package com.example.bbd.data
  */
 object Seed {
 
-    val USER = CurrentUser(
-        name = "정민수", role = "BRANCH_STAFF", position = "정비사", emp = "BR002",
-        branch = "강남 1지점", branchCode = "WH-BR-001",
-        warehouse = "WH-BR-001", warehouseName = "강남 1지점",
-        pwChanged = "2025-12-04", pwDaysAgo = 170,
+    /** 프로토타입 시드 기준의 '현재'(결정적) — 상대 날짜 라벨 계산용. 실 연동 시 LocalDate.now()로. */
+    const val DEMO_TODAY = "2026-06-20"
+
+    // 모바일 허용 계정 = 강남 1지점(같은 지점·같은 창고 WH-BR-001). 정비사 BR002 / 점장 BR001.
+    val ACCOUNTS: Map<String, CurrentUser> = listOf(
+        CurrentUser(
+            name = "정민수", role = "BRANCH_STAFF", position = "정비사", emp = "BR002",
+            email = "minsu.jeong@bbd.co.kr",
+            branch = "강남 1지점", branchCode = "WH-BR-001",
+            warehouse = "WH-BR-001", warehouseName = "강남 1지점 창고",
+            pwChanged = "2025-12-04", pwDaysAgo = 198,
+        ),
+        CurrentUser(
+            name = "이상철", role = "BRANCH_MANAGER", position = "점장", emp = "BR001",
+            email = "sangchul.lee@bbd.co.kr",
+            branch = "강남 1지점", branchCode = "WH-BR-001",
+            warehouse = "WH-BR-001", warehouseName = "강남 1지점 창고",
+            pwChanged = "2026-03-10", pwDaysAgo = 102,
+        ),
+    ).associateBy { it.emp }
+
+    /** 기본 로그인 계정(정비사). 데모/시드 면에서 사용. */
+    val USER = ACCOUNTS.getValue("BR002")
+
+    /** 사번 → 현재 사용자 resolve (없으면 기본 정비사). */
+    fun resolveUser(emp: String): CurrentUser = ACCOUNTS[emp.trim().uppercase()] ?: USER
+
+    /** 역할별 모바일 이용 권한(마이 > 이용 권한). */
+    val ROLE_PERMS: Map<String, RolePerms> = mapOf(
+        "BRANCH_STAFF" to RolePerms(
+            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "내 작업 이력"),
+            web = emptyList(),
+            cant = listOf("지점 발주 요청(점장 전용)", "재고 조정(본사 전용)"),
+        ),
+        "BRANCH_MANAGER" to RolePerms(
+            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "내 작업 이력"),
+            web = listOf("지점 발주 요청", "발주 결과 확인"),
+            cant = listOf("재고 조정(본사 전용)"),
+        ),
     )
 
     // 모바일 로그인 게이팅 테이블.
@@ -43,32 +77,56 @@ object Seed {
 
     val INV_SUMMARY = InvSummary(total = 9, short = 2, none = 1, ok = 6)
 
-    /** 재고 조회 필터 카테고리 칩 순서. */
-    val CATEGORIES = listOf("엔진/오일", "엔진/필터", "점화", "제동", "동력전달", "현가·조향", "전장", "외장·기타")
+    /** 재고 조회 필터 카테고리 칩(시드 모드 고정 목록 — API 모드는 실 재고에서 도출). */
+    val CATEGORIES = listOf("엔진/오일", "엔진/필터", "제동", "전장", "외장·기타")
 
-    val WORKLOG: List<Movement> = listOf(
-        Movement(MoveType.OUT, "출고 · 수리", -4, "EA", "BBD-FLT-2002", "오일필터 HD-O2", "오늘", "2026-05-22", "14:35"),
-        Movement(MoveType.IN, "도착 입고 확정", 60, "EA", "BBD-FLT-2001", "에어필터 HD-A1", "오늘", "2026-05-22", "09:14"),
-        Movement(MoveType.OUT, "출고 · 교환", -2, "SET", "BBD-BRK-4001", "전방 브레이크 패드", "어제", "2026-05-21", "17:22"),
-        Movement(MoveType.OUT, "출고 · 검사", -1, "SET", "BBD-IGN-3002", "스파크플러그 이리듐", "어제", "2026-05-21", "14:08"),
-        Movement(MoveType.IN, "도착 입고 확정", 30, "SET", "BBD-BRK-4001", "전방 브레이크 패드", "5월 19일", "2026-05-19", "11:08"),
-        Movement(MoveType.ADJ, "재고 조정 · 실사", 1, "EA", "BBD-BRK-4005", "DOT4 브레이크 액 1L", "5월 18일", "2026-05-18", "10:42"),
+    // ────────── 도착 대기 SO (IN_FULFILLMENT, to_warehouse_code=WH-BR-001) ──────────
+    // GET /api/v1/sales-orders?status=IN_FULFILLMENT&to_warehouse_code=WH-BR-001
+    val INBOUND: List<SalesOrder> = listOf(
+        SalesOrder("SO-2026-0061", "IN_FULFILLMENT", "본사 중앙창고", "WH-HQ-001", "WH-BR-001", lines = listOf(
+            SoLine("BBD-OIL-1006", "엔진오일 5W-30 1L", 40, "EA", "OIL-btl"),
+            SoLine("BBD-FLT-2002", "오일필터 HD-O2", 20, "EA", "EN-fil"),
+        )),
+        SalesOrder("SO-2026-0058", "IN_FULFILLMENT", "본사 중앙창고", "WH-HQ-001", "WH-BR-001", lines = listOf(
+            SoLine("BBD-ELE-7002", "배터리 60AH", 10, "EA", "EL-bat"),
+        )),
     )
 
-    val WORKLOG_SUMMARY = WorklogSummary(total = 23, inN = 9, outN = 12, adj = 2, from = "2026-04-22", to = "2026-05-22")
-
-    val RECENT: List<Movement> get() = WORKLOG.take(3)
-
-    val PR: List<Pr> = listOf(
-        Pr("PR-2026-0042", "BBD-OIL-1006", "엔진오일 5W-30 1L", 40, "EA", PrStatus.APPROVED, "무재고 보충", "2026-05-22", "09:40", "정민수", "본사 승인 완료 · 배송 준비"),
-        Pr("PR-2026-0039", "BBD-ELE-7002", "배터리 60AH", 10, "EA", PrStatus.REQUESTED, "안전재고 미달", "2026-05-21", "16:05", "정민수", "본사 승인 대기 중"),
-        Pr("PR-2026-0035", "BBD-BRK-4001", "전방 브레이크 패드", 20, "SET", PrStatus.RECEIVED, "안전재고 미달", "2026-05-19", "10:12", "정민수", "입고 완료 · 5/19"),
-        Pr("PR-2026-0031", "BBD-FLT-2001", "에어필터 HD-A1", 30, "EA", PrStatus.SHIPPED, "수요 증가", "2026-05-18", "11:33", "정민수", "배송 중 · 도착 예정 5/24"),
-        Pr("PR-2026-0028", "BBD-OIL-1006", "엔진오일 5W-30 1L", 24, "EA", PrStatus.REJECTED, "수요 증가", "2026-05-15", "14:50", "정민수", "본사 반려 · 직전 발주분 소진 후 재요청"),
+    // ────────── 내가 도착 확인한 SO (RECEIVED, received_by=BR002) — 최신순 ──────────
+    val RECEIVED: List<SalesOrder> = listOf(
+        SalesOrder("SO-2026-0054", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-22", time = "09:14", lines = listOf(
+            SoLine("BBD-FLT-2001", "에어필터 HD-A1", 60, "EA", "EN-air"),
+            SoLine("BBD-FLT-2002", "오일필터 HD-O2", 30, "EA", "EN-fil"),
+        )),
+        SalesOrder("SO-2026-0049", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-21", time = "17:22", lines = listOf(
+            SoLine("BBD-BRK-4001", "전방 브레이크 패드", 30, "SET", "BR-pad"),
+        )),
+        SalesOrder("SO-2026-0045", "RECEIVED", "강남 2지점 창고", "WH-BR-002", date = "2026-05-21", time = "14:08", lines = listOf(
+            SoLine("BBD-BRK-4005", "DOT4 브레이크 액 1L", 12, "EA", "BR-oil"),
+        )),
+        SalesOrder("SO-2026-0041", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-19", time = "11:08", lines = listOf(
+            SoLine("BBD-EXT-8001", "와이퍼 24인치", 24, "EA", "EX-wpr"),
+            SoLine("BBD-EXT-8005", "워셔액 2L", 40, "EA", "EX-wsh"),
+            SoLine("BBD-BRK-4002", "후방 브레이크 패드", 10, "SET", "BR-pad"),
+        )),
+        SalesOrder("SO-2026-0036", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-18", time = "10:42", lines = listOf(
+            SoLine("BBD-FLT-2002", "오일필터 HD-O2", 25, "EA", "EN-fil"),
+        )),
+        SalesOrder("SO-2026-0030", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-15", time = "15:30", lines = listOf(
+            SoLine("BBD-OIL-1006", "엔진오일 5W-30 1L", 48, "EA", "OIL-btl"),
+        )),
     )
 
-    /** 알림 배지 수. */
-    const val NOTIF = 3
+    /**
+     * 부품 상세 '최근 입고' — StockMovement 조회 API 미제공이라 합성 금지.
+     * 내가 도착 확인한 RECEIVED 발주에서 해당 SKU가 든 '도착 입고' 행만 파생.
+     */
+    fun receivedInForSku(sku: String, source: List<SalesOrder> = RECEIVED): List<RecentReceive> =
+        source.mapNotNull { so ->
+            so.lines.firstOrNull { it.sku == sku }?.let { l ->
+                RecentReceive(so.so, l.qty, l.unit, so.date, so.time)
+            }
+        }
 
     fun partBySku(sku: String): Part? =
         PARTS.find { it.sku.equals(sku, ignoreCase = true) }

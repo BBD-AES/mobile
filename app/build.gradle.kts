@@ -61,6 +61,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // java.time(LocalDate 등)을 minSdk 24(<26)에서 쓰기 위한 core library desugaring.
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -96,6 +98,9 @@ dependencies {
 
     // 바코드/QR 스캔 (ZXing)
     implementation(libs.zxing.embedded)
+
+    // java.time 백포트 (minSdk 24 에서 LocalDate 등 사용 — coreLibraryDesugaring)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

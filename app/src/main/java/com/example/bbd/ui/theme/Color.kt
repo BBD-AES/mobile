@@ -20,8 +20,14 @@ object T {
     val blueInk = Color(0xFF2647B8)   // 파랑 칩 위 텍스트
     val red = Color(0xFFE5484D)       // 없음 / 초과 / 음수
     val redSoft = Color(0xFFFDECEC)   // 빨강 칩 배경
-    val green = Color(0xFF1F9D57)     // 정상 dot
-    val amber = Color(0xFFD98A1F)     // 경고 (오래된 비번, 출고 배너)
+    val green = Color(0xFF1F9D57)     // 정상/입고완료
+    val greenSoft = Color(0xFFE7F6EC) // 초록 칩 배경
+    val greenInk = Color(0xFF157A41)  // 초록 칩 위 텍스트
+    val amber = Color(0xFFD98A1F)     // 주의/부족
+    val amberSoft = Color(0xFFFFF7EF) // amber 칩 배경
+    val amberInk = Color(0xFF9A6516)  // amber 텍스트(대비 보강 ~5:1)
+    val ink3Read = Color(0xFF6B7488)  // 정보 텍스트용 회색(AA ~4.5:1)
+    val tabInactive = Color(0xFF6B7488) // 탭 비활성(대비 보강)
 
     // 컴포넌트에서 쓰는 보조 색
     val white = Color(0xFFFFFFFF)
