@@ -152,6 +152,7 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val userRepo = remember { com.example.bbd.data.repo.UserRepository() }
     val authRepo = remember { com.example.bbd.data.repo.AuthRepository() }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         AuthManager.handleResult(result.data) { ok, err ->
@@ -160,23 +161,36 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
                 error = err ?: "로그인에 실패했어요."
                 return@handleResult
             }
-            // 토큰 교환 성공 → 게이트웨이 /me 로 실 신원 resolve(OIDC 엔 사번 입력이 없음).
-            // 성공이면 실 Me 로 홈 진입, 실패/미인증이면 에러 표시(홈 진입 막기 — 시드 날조 금지).
+            // 토큰 교환 성공 → 실 신원 resolve(OIDC 엔 사번 입력이 없음).
+            // 우선순위: user-service /user/api/v1/users/me(권위 role + 지점명) →
+            //          실패 시 게이트웨이 /api/auth/me(신원-only, role=position best-effort)로 폴백.
+            // 둘 다 실패면 에러 표시(홈 진입 막기 — 시드 날조 금지).
             scope.launch {
-                when (val st = authRepo.me()) {
+                when (val us = userRepo.me()) {
+                    // 1순위: /users/me — 권위 role + tenancyName(지점명).
                     is com.example.bbd.data.remote.UiState.Success -> {
-                        val dto = st.data
-                        if (dto.authenticated) {
-                            loading = false
-                            onLoginAs(dto.toCurrentUser())
-                        } else {
-                            loading = false
-                            error = dto.message ?: "인증 정보를 확인하지 못했어요."
-                        }
-                    }
-                    is com.example.bbd.data.remote.UiState.Error -> {
                         loading = false
-                        error = "사용자 정보를 불러오지 못했어요. (${st.message})"
+                        onLoginAs(us.data.toCurrentUser())
+                    }
+                    // /users/me 실패(미등록/에러) → 게이트웨이 /api/auth/me 신원-only 폴백.
+                    is com.example.bbd.data.remote.UiState.Error -> {
+                        when (val st = authRepo.me()) {
+                            is com.example.bbd.data.remote.UiState.Success -> {
+                                val dto = st.data
+                                if (dto.authenticated) {
+                                    loading = false
+                                    onLoginAs(dto.toCurrentUser())
+                                } else {
+                                    loading = false
+                                    error = dto.message ?: "인증 정보를 확인하지 못했어요."
+                                }
+                            }
+                            is com.example.bbd.data.remote.UiState.Error -> {
+                                loading = false
+                                error = "사용자 정보를 불러오지 못했어요. (${st.message})"
+                            }
+                            else -> { /* Loading 은 repo 가 반환하지 않음 */ }
+                        }
                     }
                     else -> { /* Loading 은 repo 가 반환하지 않음 */ }
                 }

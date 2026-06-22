@@ -116,8 +116,13 @@ fun BbdApp() {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
                 BackHandler(enabled = top.screen != "login" || stack.size > 1 || queueOpen) {
                     when {
+                        // 1) 전역 큐 시트 열림 → 닫기
                         queueOpen -> queueOpen = false
+                        // 2) 푸시된 화면(스택 깊이>1) → pop
                         stack.size > 1 -> stack = stack.dropLast(1)
+                        // 3) 비-홈 탭 루트(깊이==1) → 홈 탭으로
+                        top.screen in TAB_ROUTES && top.screen != "home" -> nav.tab("home")
+                        // 4) 홈 탭 루트(또는 login) → 더블백 종료
                         else -> {
                             val now = System.currentTimeMillis()
                             if (now - lastBackAt < 2000) activity?.finish()
