@@ -208,11 +208,15 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
     val app = LocalAppData.current
     val repo = remember { com.example.bbd.data.repo.SalesOrderRepository() }
     var reloadKey by remember { mutableStateOf(0) }
+    // received_by 는 실 사번(me.emp) — 시드 사번 쓰지 않음. emp 가 비면(/me 신원 미확정) 조회 가드.
     val state by androidx.compose.runtime.produceState<com.example.bbd.data.remote.UiState<List<com.example.bbd.data.remote.dto.SalesOrderSummaryDto>>>(
-        com.example.bbd.data.remote.UiState.Loading, reloadKey,
+        com.example.bbd.data.remote.UiState.Loading, reloadKey, me.emp,
     ) {
         value = com.example.bbd.data.remote.UiState.Loading
-        value = repo.receivedByMe(me.emp)
+        value = if (me.emp.isBlank())
+            com.example.bbd.data.remote.UiState.Error("사용자 신원(사번)을 확인하지 못해 작업 이력을 불러올 수 없습니다.")
+        else
+            repo.receivedByMe(me.emp)
     }
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {

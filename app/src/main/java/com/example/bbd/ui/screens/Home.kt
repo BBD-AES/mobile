@@ -68,7 +68,10 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                 Column(Modifier.weight(1f)) {
                     Text(me.name, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, letterSpacing = (-0.4).sp)
                     Spacer(Modifier.size(3.dp))
-                    Text("${me.branch} · ${me.branchCode} · ${me.position}", fontSize = 12.5.sp, color = T.ink3Read, fontFamily = Mono)
+                    // 지점·코드·직무 — /me 가 지점을 주지 않으면(실 API) 빈 항목은 빼고 표시(시드 날조 금지).
+                    // 데모/시드 모드는 모든 값이 차 있어 외형 불변.
+                    val sub = listOf(me.branch, me.branchCode, me.position).filter { it.isNotBlank() }.joinToString(" · ")
+                    Text(sub, fontSize = 12.5.sp, color = T.ink3Read, fontFamily = Mono)
                 }
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable { app.refresh() }, contentAlignment = Alignment.Center) {
                     BbdIcon("refresh", 20.dp, if (app.refreshing) T.blue else T.ink2)

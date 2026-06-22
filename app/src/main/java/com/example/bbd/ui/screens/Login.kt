@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bbd.data.LoginResult
 import com.example.bbd.data.Seed
+import com.example.bbd.data.toCurrentUser
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.Spinner
 import com.example.bbd.ui.theme.Mono
@@ -54,14 +55,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.example.bbd.BuildConfig
 import com.example.bbd.auth.AuthManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class ErrField { EMP, PW }
 private data class LoginError(val title: String, val body: String, val web: Boolean, val field: ErrField = ErrField.EMP)
 
 @Composable
-fun LoginScreen(onLogin: (String) -> Unit) {
+fun LoginScreen(
+    onLogin: (String) -> Unit,
+    onLoginAs: (com.example.bbd.data.CurrentUser) -> Unit,
+) {
     // release/USE_API = 항상 OIDC. debug + 시드 = 데모 사번/비번 게이팅.
-    if (BuildConfig.USE_API || !BuildConfig.DEBUG) OidcLoginScreen(onLogin) else DemoLoginScreen(onLogin)
+    // OIDC 성공 시 게이트웨이 /me 로 실 신원을 받아 onLoginAs 로 설정(데모는 onLogin 으로 시드 resolve).
+    if (BuildConfig.USE_API || !BuildConfig.DEBUG) OidcLoginScreen(onLoginAs) else DemoLoginScreen(onLogin)
 }
 
 // ───────────────────────── 데모(시드) 로그인 ─────────────────────────
@@ -142,14 +148,39 @@ private fun DemoLoginScreen(onLogin: (String) -> Unit) {
 // ───────────────────────── OIDC(Keycloak) 로그인 (USE_API/release) ─────────────────────────
 
 @Composable
-private fun OidcLoginScreen(onLogin: (String) -> Unit) {
+private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val authRepo = remember { com.example.bbd.data.repo.AuthRepository() }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         AuthManager.handleResult(result.data) { ok, err ->
-            loading = false
-            // OIDC 엔 사번 입력이 없음 — 세션 resolve 는 /me. 시드 면과 동일 진입을 위해 기본 정비사로.
-            if (ok) onLogin("BR002") else error = err ?: "로그인에 실패했어요."
+            if (!ok) {
+                loading = false
+                error = err ?: "로그인에 실패했어요."
+                return@handleResult
+            }
+            // 토큰 교환 성공 → 게이트웨이 /me 로 실 신원 resolve(OIDC 엔 사번 입력이 없음).
+            // 성공이면 실 Me 로 홈 진입, 실패/미인증이면 에러 표시(홈 진입 막기 — 시드 날조 금지).
+            scope.launch {
+                when (val st = authRepo.me()) {
+                    is com.example.bbd.data.remote.UiState.Success -> {
+                        val dto = st.data
+                        if (dto.authenticated) {
+                            loading = false
+                            onLoginAs(dto.toCurrentUser())
+                        } else {
+                            loading = false
+                            error = dto.message ?: "인증 정보를 확인하지 못했어요."
+                        }
+                    }
+                    is com.example.bbd.data.remote.UiState.Error -> {
+                        loading = false
+                        error = "사용자 정보를 불러오지 못했어요. (${st.message})"
+                    }
+                    else -> { /* Loading 은 repo 가 반환하지 않음 */ }
+                }
+            }
         }
     }
     Column(

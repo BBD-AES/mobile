@@ -106,8 +106,13 @@ private fun InventoryBody(
                 ) {
                     Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         BbdIcon("pin", 15.dp, T.ink3)
-                        Text("${Seed.USER.branch} · ", fontSize = 13.sp, color = T.ink2, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        CodeText(Seed.USER.branchCode, size = 12.5.sp, color = T.ink3Read)
+                        // 지점 표기는 실 사용자(LocalMe). 데모/시드 모드에선 LocalMe==Seed.USER 라 외형 불변.
+                        // /me 에 지점명이 없으면(미래 API) 빈 라벨 대신 창고 코드만(시드 지점 날조 금지).
+                        val meLoc = LocalMe.current
+                        if (meLoc.branch.isNotBlank()) {
+                            Text("${meLoc.branch} · ", fontSize = 13.sp, color = T.ink2, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                        CodeText((meLoc.branchCode.ifBlank { meLoc.warehouse }), size = 12.5.sp, color = T.ink3Read)
                     }
                     if (apiMode) {
                         Row(
@@ -304,8 +309,10 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
         Column(Modifier.fillMaxWidth().bbdCard()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {
-                    Text(Seed.USER.warehouseName, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink)
-                    CodeText(Seed.USER.warehouse, size = 11.5.sp, color = T.ink3Read)
+                    // 실 사용자 창고(LocalMe). 데모/시드는 me==Seed.USER 라 외형 불변.
+                    // /me 가 창고명을 안 주면(미래 API) 시드명 대신 이 부품의 창고코드(p.wh)로 표기(날조 금지).
+                    Text(me.warehouseName.ifBlank { p.wh }, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink)
+                    CodeText(me.warehouse.ifBlank { p.wh }, size = 11.5.sp, color = T.ink3Read)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Row(verticalAlignment = Alignment.Bottom) {
@@ -407,10 +414,18 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
 @Composable
 private fun InventoryScreenApi(nav: Nav, contentPad: PaddingValues, initialFilter: String?) {
     val repo = remember { InventoryRepository() }
+    // 창고 코드 = 실 사용자(LocalMe)의 warehouse. /me 는 지점·창고를 주지 않으므로 빈값일 수 있음.
+    // 빈값이면 전 창고 조회(warehouseCode=null) 폴백 금지 — inventory 가 토큰 스코핑을 안 해 전 지점 재고가
+    // 노출됨. 대신 '내 지점 매핑 연동 대기(tenancy)' 안내 상태로 두고 stocks 쿼리를 생략한다.
+    val warehouse = LocalMe.current.warehouse
+    if (warehouse.isBlank()) {
+        InventoryTenancyPending(nav, contentPad)
+        return
+    }
     var reloadKey by remember { mutableStateOf(0) }
-    val state by produceState<UiState<List<Part>>>(UiState.Loading, reloadKey) {
+    val state by produceState<UiState<List<Part>>>(UiState.Loading, reloadKey, warehouse) {
         value = UiState.Loading
-        value = repo.branchStocks(Seed.USER.warehouse)
+        value = repo.branchStocks(warehouse)
     }
     when (val st = state) {
         is UiState.Success -> InventoryBody(
@@ -426,6 +441,52 @@ private fun InventoryScreenApi(nav: Nav, contentPad: PaddingValues, initialFilte
                 ) {
                     if (st is UiState.Loading) LoadingRows(5)
                     if (st is UiState.Error) ErrorState(st.message, onRetry = { reloadKey++ })
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 내 창고(warehouse) 미확정 상태 — /me 가 지점·창고(tenancy)를 주지 않음.
+ * 전 창고 폴백 금지(inventory 토큰 스코핑 미적용 → 전 지점 노출)이므로 재고 쿼리를 생략하고
+ * 안내 상태만 노출('DTO 보강 대기' 배너/카드 스타일 재사용, 문구만 지점-스코핑 대기로).
+ */
+@Composable
+private fun InventoryTenancyPending(nav: Nav, contentPad: PaddingValues) {
+    Box(Modifier.fillMaxSize().padding(contentPad)) {
+        Column(Modifier.fillMaxSize().background(T.bg)) {
+            Header(title = "재고 조회", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
+            ) {
+                // 지점 미상 + 스코핑 대기 배지(시드 지점값 날조 금지 — 자리만 비움).
+                Row(
+                    Modifier.fillMaxWidth().bbdCard().padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        BbdIcon("pin", 15.dp, T.ink3)
+                        Text("내 지점 미확정", fontSize = 13.sp, color = T.ink2, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                    Row(
+                        Modifier.clip(RoundedCornerShape(999.dp)).background(T.lineSoft).padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        BbdIcon("refresh", 12.dp, T.ink3Read, sw = 2f)
+                        Text("지점 스코핑 대기", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
+                    }
+                }
+                Spacer(Modifier.size(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.amberSoft).border(1.dp, T.amberBlockBorder, RoundedCornerShape(13.dp)).padding(horizontal = 15.dp, vertical = 13.dp),
+                    horizontalArrangement = Arrangement.spacedBy(11.dp),
+                ) {
+                    BbdIcon("info", 18.dp, T.amber, sw = 2f)
+                    Text(
+                        "내 지점·창고(tenancy) 매핑 연동 대기. 로그인 신원(/me)에는 지점·창고가 없어 재고를 지점으로 좁힐 수 없습니다. 전 지점 노출을 막기 위해 매핑 연동 후 표시됩니다.",
+                        fontSize = 12.5.sp, color = T.ink2, lineHeight = 18.sp,
+                    )
                 }
             }
         }

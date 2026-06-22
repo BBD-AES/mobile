@@ -115,6 +115,37 @@ data class CurrentUser(
     val pwDaysAgo: Int,
 )
 
+/**
+ * 게이트웨이 `/api/auth/me`(신원만) → 앱 [CurrentUser] 매핑.
+ *
+ * /me 는 신원만 주고 **role·지점(branch/branchCode)·창고(warehouse/warehouseName)·tenancy 는 주지 않는다**.
+ *  - role: 서버가 진짜 인가를 함. 여기 값은 position 기반 best-effort UI 힌트일 뿐
+ *    (position 에 "점장" 또는 "manager" 포함 시 BRANCH_MANAGER, 아니면 BRANCH_STAFF).
+ *  - branch/branchCode/warehouse/warehouseName: /me 에 없음 → **빈값**. 시드로 날조하지 않는다(지점 매핑=tenancy 연동 대기).
+ *  - pwChanged/pwDaysAgo: /me 에 없음 → 빈값/0(마이 화면 '마지막 변경'은 Keycloak 소관, 표시만 비움).
+ */
+fun com.example.bbd.data.remote.dto.MeDto.toCurrentUser(): CurrentUser {
+    val pos = position ?: ""
+    // best-effort UI 힌트 — 서버가 진짜 인가(UserSnapshot). position 텍스트로만 역할을 '추정'.
+    val roleHint = if (pos.contains("점장") || pos.contains("manager", ignoreCase = true))
+        "BRANCH_MANAGER" else "BRANCH_STAFF"
+    return CurrentUser(
+        name = displayName ?: (username ?: ""),
+        role = roleHint,
+        position = pos,
+        emp = employeeNumber ?: "",
+        email = email ?: "",
+        // /me 에 없음 — tenancy(지점·창고) 매핑 연동 대기. 날조 금지(빈값 유지).
+        branch = "",
+        branchCode = "",
+        warehouse = "",
+        warehouseName = "",
+        // /me 에 없음 — Keycloak 소관. 표시만 비움.
+        pwChanged = "",
+        pwDaysAgo = 0,
+    )
+}
+
 /** 역할별 모바일 이용 권한(마이 > 이용 권한). can=모바일 가능 / web=웹 ERP에서 / cant=불가. */
 data class RolePerms(
     val can: List<String>,

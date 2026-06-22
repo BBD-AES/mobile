@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.bbd.data.CurrentUser
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
 import com.example.bbd.ui.screens.ArrivalQueueSheet
@@ -53,6 +54,8 @@ class Nav(
     val pop: () -> Unit,
     val tab: (String) -> Unit,
     val login: (String) -> Unit,
+    /** API 모드: 게이트웨이 /me 로 만든 실 사용자를 직접 설정 + 홈 진입(시드 resolve 우회). */
+    val loginAs: (CurrentUser) -> Unit,
     val logout: () -> Unit,
     val scan: () -> Unit,
     val openQueue: () -> Unit,
@@ -100,6 +103,7 @@ fun BbdApp() {
             stack = listOf(Route(id))
         },
         login = { emp -> me = Seed.resolveUser(emp); stack = listOf(Route("home")) },
+        loginAs = { user -> me = user; stack = listOf(Route("home")) },
         logout = { stack = listOf(Route("login")) },
         scan = { stack = stack + Route("scan-in") },
         openQueue = { queueOpen = true },
@@ -126,7 +130,7 @@ fun BbdApp() {
                 ScreenContainer(routeKey) {
                     val contentPad = if (isTabRoot) PaddingValues(bottom = TabBarHeight) else PaddingValues()
                     when (top.screen) {
-                        "login" -> LoginScreen(onLogin = nav.login)
+                        "login" -> LoginScreen(onLogin = nav.login, onLoginAs = nav.loginAs)
                         "home" -> HomeScreen(nav, contentPad)
                         "inventory" -> InventoryScreen(nav, contentPad, inventoryFilter)
                         "my" -> MyScreen(nav, contentPad)
