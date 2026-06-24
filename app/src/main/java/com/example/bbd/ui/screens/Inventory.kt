@@ -96,7 +96,7 @@ private fun InventoryBody(
 
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
-            Header(title = "재고 조회", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
+            Header(title = "재고 조회", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             ) {
@@ -417,7 +417,7 @@ private fun InventoryScreenApi(nav: Nav, contentPad: PaddingValues, initialFilte
         )
         else -> Box(Modifier.fillMaxSize().padding(contentPad)) {
             Column(Modifier.fillMaxSize().background(T.bg)) {
-                Header(title = "재고 조회", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
+                Header(title = "재고 조회", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
                 Column(
                     Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
                 ) {
@@ -438,7 +438,7 @@ private fun InventoryScreenApi(nav: Nav, contentPad: PaddingValues, initialFilte
 private fun InventoryTenancyPending(nav: Nav, contentPad: PaddingValues) {
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
-            Header(title = "재고 조회", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
+            Header(title = "재고 조회", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             ) {

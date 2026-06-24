@@ -56,6 +56,7 @@ import com.example.bbd.ui.CodeText
 import com.example.bbd.ui.Header
 import com.example.bbd.ui.IconBtn
 import com.example.bbd.ui.LocalAppData
+import com.example.bbd.ui.ToastHost
 import com.example.bbd.ui.LocalMe
 import com.example.bbd.ui.ModalHost
 import com.example.bbd.ui.Nav
@@ -98,6 +99,8 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
     var pickOpen by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<OrderUi?>(null) }
+    var scanToast by remember { mutableStateOf("") }
+    if (scanToast.isNotBlank()) LaunchedEffect(scanToast) { delay(2200); scanToast = "" }
     // 멱등 키 — 폼 진입당 1개(재시도/중복 제출 시 동일 키 재전송). 핸드오프 §4.3.
     val idemKey = remember { java.util.UUID.randomUUID().toString() }
 
@@ -115,8 +118,11 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
         val sku = res.contents?.trim()?.uppercase()
         if (sku != null) {
             if (BuildConfig.USE_API) {
-                scope.launch { if ((itemRepo.resolve(sku) as? UiState.Success)?.data != null) addLine(sku) }
-            } else if (Seed.partBySku(sku) != null) addLine(sku)
+                scope.launch {
+                    if ((itemRepo.resolve(sku) as? UiState.Success)?.data != null) addLine(sku)
+                    else scanToast = "미등록 부품: $sku"
+                }
+            } else if (Seed.partBySku(sku) != null) addLine(sku) else scanToast = "미등록 부품: $sku"
         }
     }
 
@@ -282,6 +288,7 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
                 null -> {}
             }
         }
+        ToastHost(scanToast)
     }
 }
 

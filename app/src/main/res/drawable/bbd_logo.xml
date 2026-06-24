@@ -1,0 +1,23 @@
+<!-- 현대부품(BBD) 로고 — hyundai_parts_logo_manual_trace.svg 트레이스. viewBox 140x123. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="140dp"
+    android:height="123dp"
+    android:viewportWidth="140"
+    android:viewportHeight="123">
+    <path
+        android:fillColor="#0E458C"
+        android:fillType="evenOdd"
+        android:pathData="M 30 4 L 28 6 L 27 6 L 26 7 L 25 7 L 23 9 L 22 9 L 21 10 L 20 10 L 18 12 L 17 12 L 15 14 L 14 14 L 13 15 L 12 15 L 10 17 L 9 17 L 8 18 L 7 18 L 4 21 L 4 102 L 5 103 L 6 103 L 8 105 L 9 105 L 10 106 L 11 106 L 13 108 L 14 108 L 15 109 L 16 109 L 18 111 L 19 111 L 20 112 L 21 112 L 23 114 L 24 114 L 26 116 L 27 116 L 28 117 L 29 117 L 30 118 L 31 118 L 31 73 L 32 72 L 65 72 L 65 67 L 66 66 L 75 66 L 76 65 L 76 59 L 75 58 L 66 58 L 65 57 L 65 53 L 64 53 L 63 52 L 62 52 L 61 53 L 33 53 L 31 51 L 31 4 Z" />
+    <path
+        android:fillColor="#4A5052"
+        android:fillType="evenOdd"
+        android:pathData="M 109 4 L 109 51 L 107 53 L 78 53 L 78 54 L 82 58 L 82 66 L 78 70 L 78 72 L 108 72 L 109 73 L 109 118 L 110 117 L 111 117 L 112 116 L 113 116 L 115 114 L 116 114 L 117 113 L 118 113 L 120 111 L 121 111 L 123 109 L 124 109 L 125 108 L 126 108 L 128 106 L 129 106 L 130 105 L 131 105 L 133 103 L 134 103 L 135 102 L 135 20 L 134 20 L 132 18 L 131 18 L 130 17 L 129 17 L 127 15 L 126 15 L 125 14 L 124 14 L 122 12 L 121 12 L 119 10 L 118 10 L 117 9 L 116 9 L 114 7 L 113 7 L 112 6 L 111 6 Z" />
+    <path
+        android:fillColor="#4A5052"
+        android:fillType="evenOdd"
+        android:pathData="M 38 35 L 38 37 L 41 40 L 41 41 L 42 42 L 41 43 L 41 44 L 40 45 L 40 46 L 39 47 L 51 47 L 52 46 L 52 45 L 58 39 L 59 39 L 60 38 L 61 38 L 62 37 L 64 37 L 65 36 L 75 36 L 76 37 L 77 37 L 78 38 L 80 38 L 83 41 L 84 41 L 87 44 L 87 45 L 89 47 L 100 47 L 100 46 L 99 45 L 99 44 L 98 43 L 98 41 L 100 39 L 100 38 L 102 36 L 102 35 L 101 34 L 100 34 L 93 27 L 92 27 L 87 32 L 86 32 L 85 31 L 84 31 L 83 30 L 82 30 L 81 29 L 79 29 L 77 27 L 77 26 L 76 25 L 76 20 L 64 20 L 63 21 L 63 27 L 61 29 L 59 29 L 58 30 L 56 30 L 55 31 L 54 31 L 53 32 L 52 31 L 51 31 L 47 27 L 45 29 L 44 29 Z" />
+    <path
+        android:fillColor="#4A5052"
+        android:fillType="evenOdd"
+        android:pathData="M 38 87 L 38 89 L 39 90 L 40 90 L 46 96 L 48 96 L 52 92 L 54 92 L 55 93 L 56 93 L 57 94 L 58 94 L 59 95 L 61 95 L 63 97 L 63 103 L 76 103 L 76 100 L 77 99 L 77 96 L 78 95 L 80 95 L 81 94 L 83 94 L 84 93 L 85 93 L 86 92 L 88 92 L 92 96 L 93 96 L 95 94 L 96 94 L 102 88 L 101 87 L 101 86 L 98 83 L 98 81 L 100 79 L 100 78 L 88 78 L 88 79 L 83 84 L 82 84 L 80 86 L 79 86 L 78 87 L 76 87 L 75 88 L 65 88 L 64 87 L 62 87 L 61 86 L 60 86 L 59 85 L 58 85 L 51 78 L 40 78 L 40 79 L 41 80 L 41 81 L 42 82 L 40 84 L 40 85 Z" />
+</vector>
