@@ -115,34 +115,13 @@ private fun InventoryBody(
                         }
                         CodeText((meLoc.branchCode.ifBlank { meLoc.warehouse }), size = 12.5.sp, color = T.ink3Read)
                     }
-                    if (apiMode) {
-                        Row(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(T.lineSoft).padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        ) {
-                            BbdIcon("refresh", 12.dp, T.ink3Read, sw = 2f)
-                            Text("DTO 보강 대기", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
-                        }
-                    } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            SummaryPill(T.amberSoft, T.amberInk, T.amber, "부족 ${summary.short}")
-                            SummaryPill(T.redSoft, T.red, T.red, "없음 ${summary.none}")
-                        }
+                    // 부족·없음 요약 — 안전재고가 목록 DTO 에 포함돼(시드·API parity) 양 모드 동일 표시.
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        SummaryPill(T.amberSoft, T.amberInk, T.amber, "부족 ${summary.short}")
+                        SummaryPill(T.redSoft, T.red, T.red, "없음 ${summary.none}")
                     }
                 }
                 Spacer(Modifier.size(12.dp))
-
-                // API 모드: DTO 보강 대기 안내(Gap 1)
-                if (apiMode) {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.amberSoft).border(1.dp, T.amberBlockBorder, RoundedCornerShape(13.dp)).padding(horizontal = 15.dp, vertical = 13.dp),
-                        horizontalArrangement = Arrangement.spacedBy(11.dp),
-                    ) {
-                        BbdIcon("info", 18.dp, T.amber, sw = 2f)
-                        Text("재고 목록 DTO 보강 대기(Gap 1). 현재고만 표시되며 안전재고·가용재고·상태는 보강 후 표시됩니다.", fontSize = 12.5.sp, color = T.ink2, lineHeight = 18.sp)
-                    }
-                    Spacer(Modifier.size(12.dp))
-                }
 
                 // 검색 — 조회 맥락: 스캔은 부품을 찾아 상세를 엽니다(입고 쓰기 흐름 점프 금지).
                 InventorySearch(q, { q = it }) { sel = Seed.partBySku("BBD-OIL-1006") }
@@ -219,14 +198,12 @@ private fun FilterChips(
     parts: List<Part>, summary: InvSummary, categories: List<String>, apiMode: Boolean,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        // 상태 필터 — 시드만(API 는 안전재고 DTO 보강 후 상태 판정 가능).
-        if (!apiMode) {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                FilterChip("전체", status == "all", count = summary.total) { onStatus("all") }
-                FilterChip("정상", status == "정상", count = summary.ok, icon = "check", iconColor = T.green) { onStatus("정상") }
-                FilterChip("부족", status == "부족", count = summary.short, icon = "alert", iconColor = T.amber) { onStatus("부족") }
-                FilterChip("없음", status == "없음", count = summary.none, icon = "ban", iconColor = T.red) { onStatus("없음") }
-            }
+        // 상태 필터 — 안전재고 기반(정상/부족/없음). 안전재고가 목록 DTO 에 포함돼 시드·API 동일(클라 필터=곧 '안전재고 미만' 뷰).
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            FilterChip("전체", status == "all", count = summary.total) { onStatus("all") }
+            FilterChip("정상", status == "정상", count = summary.ok, icon = "check", iconColor = T.green) { onStatus("정상") }
+            FilterChip("부족", status == "부족", count = summary.short, icon = "alert", iconColor = T.amber) { onStatus("부족") }
+            FilterChip("없음", status == "없음", count = summary.none, icon = "ban", iconColor = T.red) { onStatus("없음") }
         }
         // 카테고리 필터 — 별도 줄.
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -256,7 +233,7 @@ private fun FilterChip(label: String, on: Boolean, count: Int? = null, icon: Str
 
 @Composable
 private fun PartRow(p: Part, apiMode: Boolean, onClick: () -> Unit) {
-    val urgent = !apiMode && (p.status == StockStatus.NONE || p.status == StockStatus.SHORT)
+    val urgent = p.status == StockStatus.NONE || p.status == StockStatus.SHORT
     val accent = if (p.status == StockStatus.NONE) T.red else T.amber
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(T.card).border(1.dp, T.line, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(14.dp),
@@ -278,17 +255,11 @@ private fun PartRow(p: Part, apiMode: Boolean, onClick: () -> Unit) {
             }
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text("${p.qty}", fontFamily = Mono, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = if (!apiMode && p.status == StockStatus.NONE) T.red else T.ink)
+                    Text("${p.qty}", fontFamily = Mono, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = if (p.status == StockStatus.NONE) T.red else T.ink)
                     Text(" ${p.unit}", fontSize = 11.sp, color = T.ink3Read, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.size(7.dp))
-                if (apiMode) {
-                    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(T.lineSoft).padding(horizontal = 9.dp, vertical = 3.dp)) {
-                        Text("안전재고 —", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
-                    }
-                } else {
-                    StatusPill(p.status)
-                }
+                StatusPill(p.status)
             }
         }
     }
