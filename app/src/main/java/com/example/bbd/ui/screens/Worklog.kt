@@ -70,7 +70,7 @@ import com.example.bbd.ui.theme.T
 import kotlinx.coroutines.delay
 
 // ─────────────────────────────────────────────────────────────────────────
-// 이동요청 이력 — "내 입고"가 아닌 지점 전체 재고이동요청(STR)을 상태 무관 전체로.
+// 재고이동요청 이력 — "내 입고"가 아닌 지점 전체 재고이동요청(STR)을 상태 무관 전체로.
 // 요청자/입고자/취소자(책임 추적)와 상태 배지를 보여주는 운영 이력. 상태 필터로 좁힌다.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -285,7 +285,7 @@ private fun HistoryRow(so: SalesOrder, selected: Boolean, onClick: () -> Unit) {
 }
 
 // ───────────────────────── 실 API 경로 (USE_API) ─────────────────────────
-// sales GET /api/v1/sales-orders?to_warehouse_code={내 창고} → 지점 전체 이동요청(상태 무관).
+// sales GET /api/v1/sales-orders?to_warehouse_code={내 창고} → 지점 전체 재고이동요청(상태 무관).
 // 서버가 BRANCH 를 자기 지점으로 자동 스코프하고 응답에 requested/received/canceledBy 를 준다.
 
 @Composable
