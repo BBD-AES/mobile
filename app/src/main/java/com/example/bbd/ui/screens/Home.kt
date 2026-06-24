@@ -51,6 +51,8 @@ import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.T
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 @Composable
@@ -79,6 +81,19 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
             notifLoading = false
         }
     }
+    // 실시간 근사 — 무음 폴링(20s). 로딩/클리어 토글 없이 목록만 교체해 벨 카운트가 깜빡임 없이 자동 갱신된다.
+    // (submitted→점장 알람 증가 / stock-replenished 입고를 포그라운드 유지 중에도 반영. 프로덕션 푸시(FCM/SSE)는 후속.)
+    if (com.example.bbd.BuildConfig.USE_API) {
+        LaunchedEffect(Unit) {
+            while (isActive) {
+                delay(20_000)
+                when (val r = notifRepo.inbox()) {
+                    is UiState.Success -> app.loadNotifications(r.data)
+                    else -> {}
+                }
+            }
+        }
+    }
 
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
@@ -95,7 +110,16 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                     val sub = listOf(me.branch, me.branchCode, me.position).filter { it.isNotBlank() }.joinToString(" · ")
                     Text(sub, fontSize = 12.5.sp, color = T.ink3Read, fontFamily = Mono)
                 }
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable { app.refresh() }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable {
+                    app.refresh()
+                    // 수동 새로고침은 알림함도 즉시 무음 refetch(벨 카운트 동기화).
+                    if (com.example.bbd.BuildConfig.USE_API) scope.launch {
+                        when (val r = notifRepo.inbox()) {
+                            is UiState.Success -> app.loadNotifications(r.data)
+                            else -> {}
+                        }
+                    }
+                }, contentAlignment = Alignment.Center) {
                     BbdIcon("refresh", 20.dp, if (app.refreshing) T.blue else T.ink2)
                 }
                 BellBtn(app.unreadCount) { notifOpen = true }

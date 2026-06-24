@@ -75,12 +75,15 @@ object Seed {
         Part("BBD-BRK-4005", "DOT4 브레이크 액 1L", "제동", "BR-oil", 22, "EA", StockStatus.OK, 15, WH),
         Part("BBD-EXT-8001", "와이퍼 24인치", "외장·기타", "EX-wpr", 18, "EA", StockStatus.OK, 15, WH),
         Part("BBD-EXT-8005", "워셔액 2L", "외장·기타", "EX-wsh", 38, "EA", StockStatus.OK, 20, WH),
+        // 실 카탈로그 SKU — 데모(USE_API=false) 모드에서도 같은 QR(ACC-000043)이 잡히도록 시드에 등재.
+        // QR 인식은 모드 무관 동일: 라이브는 item-service 해석, 데모는 partBySku 가 이 항목으로 해석.
+        Part("ACC-000043", "현대 아반떼 CN7 소모품 키트", "소모품", "box", 12, "SET", StockStatus.OK, 6, WH),
     )
 
-    val INV_SUMMARY = InvSummary(total = 9, short = 2, none = 1, ok = 6)
+    val INV_SUMMARY = InvSummary(total = 10, short = 2, none = 1, ok = 7)
 
     /** 재고 조회 필터 카테고리 칩(시드 모드 고정 목록 — API 모드는 실 재고에서 도출). */
-    val CATEGORIES = listOf("엔진/오일", "엔진/필터", "제동", "전장", "외장·기타")
+    val CATEGORIES = listOf("소모품", "엔진/오일", "엔진/필터", "제동", "전장", "외장·기타")
 
     // ────────── 도착 대기 SO (IN_FULFILLMENT, to_warehouse_code=WH-BR-001) ──────────
     // GET /api/v1/sales-orders?status=IN_FULFILLMENT&to_warehouse_code=WH-BR-001

@@ -41,7 +41,9 @@ import com.example.bbd.data.Seed
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.relDay
 import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.remote.dto.CustomerOrderSummaryDto
 import com.example.bbd.data.remote.dto.SalesOrderSummaryDto
+import com.example.bbd.data.repo.CustomerOrderRepository
 import com.example.bbd.data.repo.SalesOrderRepository
 import com.example.bbd.data.totals
 import com.example.bbd.ui.BbdIcon
@@ -50,9 +52,13 @@ import com.example.bbd.ui.Header
 import com.example.bbd.ui.HeaderRight
 import com.example.bbd.ui.LocalAppData
 import com.example.bbd.ui.LocalMe
+import com.example.bbd.ui.CoDetailSheet
+import com.example.bbd.ui.CoRow
 import com.example.bbd.ui.Nav
 import com.example.bbd.ui.SoBadge
 import com.example.bbd.ui.SoDetailSheet
+import com.example.bbd.ui.ToastHost
+import com.example.bbd.ui.ToastKind
 import com.example.bbd.ui.state.EmptyState
 import com.example.bbd.ui.state.RowSkeleton
 import com.example.bbd.ui.state.StateGate
@@ -84,6 +90,39 @@ private val STATUS_FILTERS = listOf(
     StatusFilter("RECEIVED", "입고 완료", setOf("RECEIVED")),
     StatusFilter("CLOSED", "취소·반려", setOf("CANCELED", "REJECTED")),
 )
+
+/** 현장 수주(CO) 상태 필터 — OPEN(등록)/CONFIRMED(확정)/CLOSED(종료)/CANCELED(취소). */
+private val CO_STATUS_FILTERS = listOf(
+    StatusFilter("ALL", "전체", null),
+    StatusFilter("OPEN", "등록", setOf("OPEN")),
+    StatusFilter("CONFIRMED", "확정", setOf("CONFIRMED")),
+    StatusFilter("CLOSED", "종료", setOf("CLOSED")),
+    StatusFilter("CANCELED", "취소", setOf("CANCELED")),
+)
+
+/** 이력 세그먼트 — [이동요청 | 수주]. STR(재고이동요청)·CO(현장수주) 토글. */
+@Composable
+private fun WorklogSegment(active: String, onPick: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(T.lineSoft).padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        SegTab("이동요청", active == "str", Modifier.weight(1f)) { onPick("str") }
+        SegTab("수주", active == "co", Modifier.weight(1f)) { onPick("co") }
+    }
+}
+
+@Composable
+private fun SegTab(label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(10.dp)).background(if (on) T.card else Color.Transparent)
+            .then(if (on) Modifier.border(1.dp, T.line, RoundedCornerShape(10.dp)) else Modifier)
+            .clickable(onClick = onClick).padding(vertical = 9.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (on) T.blueInk else T.ink3Read)
+    }
+}
 
 /** 진행 중(도착 대기·백오더)을 위로, 그 외는 최신 날짜순. */
 private fun histRank(status: String?) = when (status) {
@@ -126,6 +165,7 @@ private fun WorklogScreenSeed(nav: Nav, contentPad: PaddingValues) {
     val me = LocalMe.current
     val app = LocalAppData.current
     var q by remember { mutableStateOf("") }
+    var seg by remember { mutableStateOf("str") }
     var filter by remember { mutableStateOf("ALL") }
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -146,13 +186,21 @@ private fun WorklogScreenSeed(nav: Nav, contentPad: PaddingValues) {
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
             Header(
-                title = "이동요청 이력", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
+                title = "이력", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
                 onRefresh = { app.refresh() }, refreshing = app.refreshing, lastRefresh = app.lastRefresh,
                 onBack = { nav.tab("home") }, onRight = nav.openQueue,
             )
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             ) {
+                WorklogSegment(seg) { seg = it }
+                Spacer(Modifier.size(14.dp))
+                if (seg == "co") {
+                    EmptyState(
+                        "list", "현장 수주 — 실연동 모드",
+                        "현장 수주 등록·조회·종료(지점재고 차감)는 실서버 연동(live)에서 동작합니다. 데모(목업) 모드에서는 표시되지 않습니다.",
+                    )
+                } else {
                 WorklogSearch(q) { q = it }
                 Spacer(Modifier.size(12.dp))
                 StatusFilterRow(filter) { filter = it }
@@ -183,6 +231,7 @@ private fun WorklogScreenSeed(nav: Nav, contentPad: PaddingValues) {
                     else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         list.forEach { so -> HistoryRow(so, selected = sel?.so == so.so) { sel = so } }
                     }
+                }
                 }
             }
         }
@@ -242,43 +291,94 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
     val me = LocalMe.current
     val app = LocalAppData.current
     val repo = remember { SalesOrderRepository() }
+    val coRepo = remember { CustomerOrderRepository() }
+    var seg by remember { mutableStateOf("str") }                 // str=이동요청, co=수주
     var reloadKey by remember { mutableStateOf(0) }
+    var coReloadKey by remember { mutableStateOf(0) }
     var filter by remember { mutableStateOf("ALL") }
-    // to_warehouse_code 는 실 창고코드(me.warehouse). 비면(/me 매핑 미확정) 조회 가드.
-    val state by produceState<UiState<List<SalesOrderSummaryDto>>>(UiState.Loading, reloadKey, me.warehouse) {
+    var coFilter by remember { mutableStateOf("ALL") }
+    var period by remember { mutableStateOf("ALL") }              // 기간 프리셋(전체/오늘/7일/30일)
+    var selectedCo by remember { mutableStateOf<String?>(null) }
+    var toastMsg by remember { mutableStateOf("") }
+    var toastKind by remember { mutableStateOf(ToastKind.OK) }
+    if (toastMsg.isNotBlank()) LaunchedEffect(toastMsg) { delay(2600); toastMsg = "" }
+    val (psd, ped) = periodRange(period)                          // start_date/end_date (yyyy-MM-dd) or null
+
+    // to_warehouse_code/dealer_warehouse_code 는 실 창고코드(me.warehouse). 비면(/me 매핑 미확정) 조회 가드.
+    val state by produceState<UiState<List<SalesOrderSummaryDto>>>(UiState.Loading, reloadKey, me.warehouse, period) {
         value = UiState.Loading
         value = if (me.warehouse.isBlank())
             UiState.Error("지점 창고를 확인하지 못해 이동요청 이력을 불러올 수 없습니다.")
         else
-            repo.branchOrders(me.warehouse)
+            repo.branchOrders(me.warehouse, psd, ped)
+    }
+    val coState by produceState<UiState<List<CustomerOrderSummaryDto>>>(UiState.Loading, coReloadKey, me.warehouse, period) {
+        value = UiState.Loading
+        value = if (me.warehouse.isBlank())
+            UiState.Error("지점 창고를 확인하지 못해 수주를 불러올 수 없습니다.")
+        else
+            coRepo.branchOrders(me.warehouse, psd, ped)
     }
     val bucket = STATUS_FILTERS.first { it.id == filter }
+    val coBucket = CO_STATUS_FILTERS.first { it.id == coFilter }
 
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
             Header(
-                title = "이동요청 이력", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
-                onRefresh = { reloadKey++ }, lastRefresh = app.lastRefresh,
+                title = "이력", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
+                onRefresh = { if (seg == "str") reloadKey++ else coReloadKey++ }, lastRefresh = app.lastRefresh,
                 onBack = { nav.tab("home") }, onRight = nav.openQueue,
             )
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp)) {
-                StatusFilterRow(filter) { filter = it }
-                Spacer(Modifier.size(12.dp))
-                StateGate(
-                    state = state,
-                    onRetry = { reloadKey++ },
-                    empty = { EmptyState("list", "이동요청 이력이 없습니다", "지점의 재고이동요청이 생기면 여기에 모입니다.") },
-                ) { items ->
-                    val list = items.filter { bucket.match(it.status) }
-                    Text("지점 이동요청 · 총 ${list.size}건", fontSize = 12.5.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 14.dp))
-                    if (list.isEmpty()) {
-                        Text("'${bucket.label}' 상태의 이동요청이 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { HistoryApiRow(it) } }
+                WorklogSegment(seg) { seg = it }
+                Spacer(Modifier.size(14.dp))
+                if (seg == "str") {
+                    StatusFilterRow(filter) { filter = it }
+                    Spacer(Modifier.size(10.dp))
+                    PeriodChips(period) { period = it }
+                    Spacer(Modifier.size(12.dp))
+                    StateGate(
+                        state = state,
+                        onRetry = { reloadKey++ },
+                        empty = { EmptyState("list", "이동요청 이력이 없습니다", "지점의 재고이동요청이 생기면 여기에 모입니다.") },
+                    ) { items ->
+                        val list = items.filter { bucket.match(it.status) }
+                        Text("지점 이동요청 · 총 ${list.size}건", fontSize = 12.5.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 14.dp))
+                        if (list.isEmpty()) {
+                            Text("'${bucket.label}' 상태의 이동요청이 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { HistoryApiRow(it) } }
+                        }
+                    }
+                } else {
+                    StatusFilterRowOf(CO_STATUS_FILTERS, coFilter) { coFilter = it }
+                    Spacer(Modifier.size(10.dp))
+                    PeriodChips(period) { period = it }
+                    Spacer(Modifier.size(12.dp))
+                    StateGate(
+                        state = coState,
+                        onRetry = { coReloadKey++ },
+                        empty = { EmptyState("list", "현장 수주가 없습니다", "현장에서 수주를 등록하면 여기에 모입니다.") },
+                    ) { items ->
+                        val list = items.filter { coBucket.match(it.status) }
+                        Text("현장 수주 · 총 ${list.size}건", fontSize = 12.5.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 14.dp))
+                        if (list.isEmpty()) {
+                            Text("'${coBucket.label}' 상태의 수주가 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { co -> CoRow(co) { selectedCo = co.coNumber } } }
+                        }
                     }
                 }
             }
         }
+        CoDetailSheet(
+            coNumber = selectedCo,
+            repo = coRepo,
+            onResult = { m, k -> toastMsg = m; toastKind = k },
+            onMutated = { coReloadKey++ },
+            onClose = { selectedCo = null },
+        )
+        ToastHost(toastMsg, toastKind)
     }
 }
 
@@ -315,13 +415,39 @@ private fun HistoryApiRow(o: SalesOrderSummaryDto) {
 
 // ───────────────────────── 공용 UI 조각 ─────────────────────────
 
+/** 기간 프리셋 칩 — 서버 start_date/end_date(yyyy-MM-dd) 로 매핑. SO/CO 검색 모두 지원하는 실 파라미터. */
+private val PERIODS = listOf("ALL" to "전체", "TODAY" to "오늘", "7D" to "최근 7일", "30D" to "최근 30일")
+
+private fun periodRange(id: String): Pair<String?, String?> {
+    val today = java.time.LocalDate.now()
+    return when (id) {
+        "TODAY" -> today.toString() to today.toString()
+        "7D" -> today.minusDays(6).toString() to today.toString()
+        "30D" -> today.minusDays(29).toString() to today.toString()
+        else -> null to null
+    }
+}
+
 @Composable
-private fun StatusFilterRow(active: String, onPick: (String) -> Unit) {
+private fun PeriodChips(active: String, onPick: (String) -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        STATUS_FILTERS.forEach { f -> StatusChip(f.label, active == f.id) { onPick(f.id) } }
+        PERIODS.forEach { (id, label) -> StatusChip(label, active == id) { onPick(id) } }
+    }
+}
+
+@Composable
+private fun StatusFilterRow(active: String, onPick: (String) -> Unit) = StatusFilterRowOf(STATUS_FILTERS, active, onPick)
+
+@Composable
+private fun StatusFilterRowOf(filters: List<StatusFilter>, active: String, onPick: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        filters.forEach { f -> StatusChip(f.label, active == f.id) { onPick(f.id) } }
     }
 }
 

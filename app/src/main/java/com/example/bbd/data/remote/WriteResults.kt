@@ -24,3 +24,29 @@ sealed interface CreateOrderResult {
     data object Offline : CreateOrderResult
     data class Error(val message: String) : CreateOrderResult
 }
+
+/** 수주 확정(OPEN→CONFIRMED) 결과. */
+sealed interface ConfirmOrderResult {
+    data class Ok(val coNumber: String) : ConfirmOrderResult
+    /** 409 CO004 — OPEN 아님(이미 확정/취소). */
+    data class Conflict(val message: String) : ConfirmOrderResult
+    data object Unauthorized : ConfirmOrderResult
+    data object Offline : ConfirmOrderResult
+    data class Error(val message: String) : ConfirmOrderResult
+}
+
+/**
+ * 수주 종료(CONFIRMED→CLOSED = 지점재고 차감) 결과 — 409 를 코드로 갈라 데모 UX 분기.
+ * (ProblemDetail title: CO007=재고부족, CO006=비CONFIRMED, IDEM*=멱등 재생→이미 종료=성공 간주.)
+ */
+sealed interface CloseOrderResult {
+    /** 2xx — 종료 + 지점재고 차감 완료. */
+    data class Ok(val coNumber: String) : CloseOrderResult
+    /** 409 CO007 — 지점 재고 부족, 차감 0(원자적). message=서버 detail. */
+    data class Insufficient(val message: String) : CloseOrderResult
+    /** 409 CO006 — CONFIRMED 아님(이미 종료/취소). */
+    data class NotClosable(val message: String) : CloseOrderResult
+    data object Unauthorized : CloseOrderResult
+    data object Offline : CloseOrderResult
+    data class Error(val message: String) : CloseOrderResult
+}

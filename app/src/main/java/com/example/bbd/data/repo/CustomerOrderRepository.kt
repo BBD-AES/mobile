@@ -1,22 +1,30 @@
 package com.example.bbd.data.repo
 
+import com.example.bbd.data.remote.CloseOrderResult
+import com.example.bbd.data.remote.ConfirmOrderResult
 import com.example.bbd.data.remote.CreateOrderResult
 import com.example.bbd.data.remote.Net
 import com.example.bbd.data.remote.SalesApi
+import com.example.bbd.data.remote.UiState
 import com.example.bbd.data.remote.dto.CreateCustomerOrderRequest
+import com.example.bbd.data.remote.dto.CustomerOrderDetailDto
 import com.example.bbd.data.remote.dto.CustomerOrderLineRequest
+import com.example.bbd.data.remote.dto.CustomerOrderSummaryDto
+import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import retrofit2.Response
 import java.io.IOException
 import java.util.UUID
 
 /**
- * 현장 수주(CustomerOrder) 등록 — sales 서비스.
+ * 현장 수주(CustomerOrder) 데이터 소스 — sales 서비스. 생성/조회/확정/종료.
  *
+ * 시연 흐름: 등록(OPEN) → 확정(CONFIRMED) → 종료(CLOSED=지점재고 차감). 부분출고 없음(전 라인 전량).
  * - customerName 은 백엔드 @NotBlank → 공백이면 [DEFAULT_CUSTOMER] 로 치환(README: 고객명 선택 입력).
- * - Idempotency-Key = 등록 요청마다 새 UUID(중복 탭은 화면에서 잠그고, 키는 1요청 1키).
- * - 비-2xx 는 예외가 아니라 [CreateOrderResult] 로 분기(401=세션만료 / 그 외=오류 / IOException=오프라인).
+ * - 멱등: 생성/종료 모두 Idempotency-Key=클라 생성 UUID(1요청 1키, 재시도는 동일키 재전송). coNumber 는 키 아님.
+ * - 비-2xx 는 예외가 아니라 결과 타입으로 분기(401=세션만료 / 409=상태·재고 / IOException=오프라인).
  */
 class CustomerOrderRepository(
     private val api: SalesApi = Net.create(SalesApi::class.java),
@@ -57,7 +65,127 @@ class CustomerOrderRepository(
         }
     }
 
+    /** 내 지점 수주 전체(상태 무관, 전 페이지 수집). 기간(start/end_date) 선택. 지점은 서버가 본인지점으로 스코프. */
+    suspend fun branchOrders(
+        dealerWarehouseCode: String,
+        startDate: String? = null,
+        endDate: String? = null,
+    ): UiState<List<CustomerOrderSummaryDto>> =
+        call { searchAll(dealerWarehouseCode = dealerWarehouseCode, startDate = startDate, endDate = endDate) }
+
+    /** 수주 상세(라인 포함). close 확인 모달에서 차감 품목·수량 표시용. */
+    suspend fun detail(coNumber: String): UiState<CustomerOrderDetailDto> =
+        call { api.customerOrder(coNumber) }
+
+    /** 확정(OPEN→CONFIRMED). 비-OPEN 이면 409(CO004). */
+    suspend fun confirm(coNumber: String): ConfirmOrderResult = withContext(Dispatchers.IO) {
+        try {
+            val resp = api.confirmCustomerOrder(coNumber)
+            when {
+                resp.isSuccessful -> ConfirmOrderResult.Ok(coNumber)
+                resp.code() == 401 -> ConfirmOrderResult.Unauthorized
+                resp.code() == 409 -> ConfirmOrderResult.Conflict(problemMessage(resp) ?: "확정할 수 없는 상태입니다")
+                else -> ConfirmOrderResult.Error("확정 실패 (${resp.code()})")
+            }
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: IOException) {
+            ConfirmOrderResult.Offline
+        } catch (e: Exception) {
+            ConfirmOrderResult.Error(e.message ?: "네트워크 오류")
+        }
+    }
+
+    /**
+     * 종료(CONFIRMED→CLOSED) = 지점재고 차감. idempotencyKey 는 호출측이 '한 종료 시도당 하나'로 고정 전달
+     * (재시도 시 동일키 재전송 → sales 요청멱등). 409 는 ProblemDetail title(코드)로 분기.
+     */
+    suspend fun close(
+        coNumber: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): CloseOrderResult = withContext(Dispatchers.IO) {
+        try {
+            val resp = api.closeCustomerOrder(coNumber, idempotencyKey)
+            when {
+                resp.isSuccessful -> CloseOrderResult.Ok(coNumber)
+                resp.code() == 401 -> CloseOrderResult.Unauthorized
+                resp.code() == 409 -> {
+                    val (code, msg) = problemDetail(resp)
+                    when {
+                        code == "CO007" -> CloseOrderResult.Insufficient(msg ?: "지점 재고가 부족하여 종료할 수 없습니다")
+                        code == "CO006" -> CloseOrderResult.NotClosable(msg ?: "이미 종료되었거나 확정 상태가 아닙니다")
+                        code?.startsWith("IDEM") == true -> CloseOrderResult.Ok(coNumber) // 멱등 재생 = 이미 종료됨
+                        else -> CloseOrderResult.Error(msg ?: "종료 실패 (409)")
+                    }
+                }
+                else -> CloseOrderResult.Error("종료 실패 (${resp.code()})")
+            }
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: IOException) {
+            CloseOrderResult.Offline
+        } catch (e: Exception) {
+            CloseOrderResult.Error(e.message ?: "네트워크 오류")
+        }
+    }
+
+    /** 페이지를 끝까지 모아 전체 반환(size 100, 최대 20페이지 안전캡). SalesOrderRepository.searchAll 동일 패턴. */
+    private suspend fun searchAll(
+        status: String? = null,
+        dealerWarehouseCode: String? = null,
+        customerName: String? = null,
+        requestedBy: String? = null,
+        startDate: String? = null,
+        endDate: String? = null,
+    ): List<CustomerOrderSummaryDto> {
+        val all = mutableListOf<CustomerOrderSummaryDto>()
+        var page = 0
+        while (page < MAX_PAGES) {
+            val resp = api.searchCustomerOrders(
+                status = status,
+                dealerWarehouseCode = dealerWarehouseCode,
+                customerName = customerName,
+                requestedBy = requestedBy,
+                startDate = startDate,
+                endDate = endDate,
+                page = page,
+                size = PAGE_SIZE,
+            )
+            all += resp.items
+            val totalPages = resp.pagination?.totalPages ?: 1
+            page++
+            if (page >= totalPages || resp.items.isEmpty()) break
+        }
+        return all
+    }
+
+    // 코루틴 취소(CancellationException)는 삼키지 말고 재던져 structured concurrency 보존.
+    private suspend fun <T> call(block: suspend () -> T): UiState<T> =
+        withContext(Dispatchers.IO) {
+            try {
+                UiState.Success(block())
+            } catch (c: CancellationException) {
+                throw c
+            } catch (e: Exception) {
+                UiState.Error(e.message ?: "네트워크 오류")
+            }
+        }
+
+    // 에러 바디 = Spring ProblemDetail(RFC7807): title=에러코드(CO006/CO007/IDEM*), detail=메시지.
+    private fun problemDetail(resp: Response<*>): Pair<String?, String?> =
+        runCatching {
+            val raw = resp.errorBody()?.string().orEmpty()
+            val pd = Gson().fromJson(raw, ProblemDetailDto::class.java)
+            pd?.title to pd?.detail
+        }.getOrDefault(null to null)
+
+    private fun problemMessage(resp: Response<*>): String? = problemDetail(resp).second
+
+    private data class ProblemDetailDto(val title: String? = null, val detail: String? = null)
+
     private companion object {
         const val DEFAULT_CUSTOMER = "현장 즉시판매"
+        const val PAGE_SIZE = 100
+        const val MAX_PAGES = 20
     }
 }
