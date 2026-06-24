@@ -49,7 +49,7 @@ import com.example.bbd.ui.theme.T
 // ───────────────────────── Modifier 헬퍼 ─────────────────────────
 
 /** 흰 카드 (보더 + 부드러운 그림자 + 라운드). */
-fun Modifier.bbdCard(radius: Dp = 16.dp, shadowDp: Dp = 3.dp): Modifier {
+fun Modifier.bbdCard(radius: Dp = 13.dp, shadowDp: Dp = 2.dp): Modifier {
     val shape: Shape = RoundedCornerShape(radius)
     return this
         .shadow(shadowDp, shape, clip = false, ambientColor = T.ink, spotColor = T.ink)

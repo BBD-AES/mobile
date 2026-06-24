@@ -93,7 +93,7 @@ fun BoxScope.ModalHost(
         enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.94f),
         exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.94f),
     ) {
-        Column(Modifier.fillMaxWidth().shadow(24.dp, RoundedCornerShape(20.dp), clip = false).clip(RoundedCornerShape(20.dp)).background(T.card)) {
+        Column(Modifier.fillMaxWidth().shadow(16.dp, RoundedCornerShape(16.dp), clip = false).clip(RoundedCornerShape(16.dp)).background(T.card)) {
             content()
         }
     }
