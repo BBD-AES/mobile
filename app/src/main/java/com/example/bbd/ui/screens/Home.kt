@@ -18,9 +18,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,10 +38,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
+import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.repo.NotificationRepository
 import com.example.bbd.ui.BbdIcon
+import com.example.bbd.ui.BellBtn
 import com.example.bbd.ui.LocalAppData
 import com.example.bbd.ui.LocalMe
 import com.example.bbd.ui.Nav
+import com.example.bbd.ui.NotificationSheet
 import com.example.bbd.ui.QueueBtn
 import com.example.bbd.ui.SoDetailSheet
 import com.example.bbd.ui.SoRow
@@ -47,6 +53,7 @@ import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.T
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
@@ -55,6 +62,16 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val waiting = app.inbound.size
     val recent = app.received.take(3)
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
+    var notifOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val notifRepo = remember { NotificationRepository() }
+    // API 모드: 진입 시 지점 알림 로드(시드 모드는 Seed.NOTIFICATIONS 유지). 실패 시 빈 목록(시드 누출 방지).
+    LaunchedEffect(Unit) {
+        if (com.example.bbd.BuildConfig.USE_API) {
+            app.loadNotifications(emptyList())
+            (notifRepo.inbox() as? UiState.Success)?.let { app.loadNotifications(it.data) }
+        }
+    }
 
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
@@ -74,6 +91,7 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable { app.refresh() }, contentAlignment = Alignment.Center) {
                     BbdIcon("refresh", 20.dp, if (app.refreshing) T.blue else T.ink2)
                 }
+                BellBtn(app.unreadCount) { notifOpen = true }
                 QueueBtn(waiting, nav.openQueue)
             }
 
@@ -115,7 +133,7 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                         horizontalArrangement = Arrangement.spacedBy(11.dp),
                     ) {
                         BbdIcon("info", 18.dp, T.ink3Read)
-                        Text("지점 이동요청·결과는 웹 ERP에서 확인합니다. (모바일 알림 준비 중)", fontSize = 12.5.sp, color = T.ink2, lineHeight = 19.sp)
+                        Text("지점 이동요청 작성·결과는 웹 ERP에서 확인합니다. 도착·보충 알림은 상단 알림함에서.", fontSize = 12.5.sp, color = T.ink2, lineHeight = 19.sp)
                     }
                     Spacer(Modifier.size(20.dp))
                 }
@@ -142,6 +160,16 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
         }
 
         SoDetailSheet(sel, me.name, me.warehouseName, onClose = { sel = null })
+        NotificationSheet(
+            open = notifOpen,
+            items = app.notifications,
+            onMarkRead = { id ->
+                app.markNotifRead(id)
+                if (com.example.bbd.BuildConfig.USE_API && id != null) scope.launch { notifRepo.markRead(id) }
+            },
+            onOpenSo = { nav.openQueue() },
+            onClose = { notifOpen = false },
+        )
     }
 }
 

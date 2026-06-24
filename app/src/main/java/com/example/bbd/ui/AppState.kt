@@ -10,6 +10,7 @@ import com.example.bbd.data.CurrentUser
 import com.example.bbd.data.Part
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
+import com.example.bbd.data.remote.dto.NotificationDto
 
 /**
  * 앱 전역 상태(셸 보유) — 디자인의 `AppData` 컨텍스트 대응.
@@ -31,6 +32,16 @@ class AppData(
     var outbounds by mutableStateOf<List<OutboundRec>>(emptyList()); private set
     var orders by mutableStateOf<List<OrderRec>>(emptyList()); private set
     private var stockOverride by mutableStateOf<Map<String, Int>>(emptyMap())
+
+    // ── 지점 알림함 — 시드 모드는 Seed.NOTIFICATIONS, API 모드는 화면이 repo 로 setNotifications. ──
+    var notifications by mutableStateOf<List<NotificationDto>>(Seed.NOTIFICATIONS); private set
+    val unreadCount: Int get() = notifications.count { !it.read }
+    fun loadNotifications(list: List<NotificationDto>) { notifications = list }
+    /** 읽음 처리(낙관적) — 해당 id 를 read=true 로. 서버 PATCH 는 화면에서 best-effort 호출. */
+    fun markNotifRead(id: Long?) {
+        if (id == null) return
+        notifications = notifications.map { if (it.id == id) it.copy(read = true) else it }
+    }
 
     /** 도착 확인(입고 확정) — inbound 에서 제거 → received 맨 앞 추가. 같은 발주 중복 방지. by=입고자 이름. */
     fun confirmReceive(soNumber: String, by: String = "") {
