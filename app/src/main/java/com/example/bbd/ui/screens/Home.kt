@@ -48,8 +48,6 @@ import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.T
 
-private val HeroGradient = Brush.linearGradient(listOf(Color(0xFF3360E6), Color(0xFF2647B8)))
-
 @Composable
 fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val me = LocalMe.current
@@ -166,36 +164,24 @@ private fun WorkCard(icon: String, title: String, metaTop: String, metaBottom: S
 
 @Composable
 private fun ArrivalHero(waiting: Int, onClick: () -> Unit) {
-    Box(
-        Modifier.fillMaxWidth()
-            .shadow(12.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = Color(0xFF26408F), spotColor = Color(0xFF26408F))
-            .clip(RoundedCornerShape(20.dp)).background(HeroGradient).clickable(onClick = onClick)
-            .padding(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 24.dp),
+    // AI 티(파란 그라데이션 hero) 제거 — 다른 카드와 동일한 플랫 업무 카드. 숫자만 accent 로 위계, 그림자/CTA 알약 없음.
+    Row(
+        Modifier.fillMaxWidth().bbdCard().clickable(onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Box(Modifier.align(Alignment.TopEnd)) { BbdIcon("chevR", 24.dp, Color.White.copy(alpha = 0.92f), sw = 2.2f) }
-        Column {
-            Box(Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                BbdIcon("truck", 28.dp, Color.White, sw = 1.9f)
-            }
-            Spacer(Modifier.size(22.dp))
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("도착 대기", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, letterSpacing = (-0.4).sp)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("$waiting", fontFamily = Mono, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                    Text("건", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
-                }
-            }
-            Spacer(Modifier.size(5.dp))
-            Text("내 창고로 이동 중 · 도착 확인하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.82f))
-            Spacer(Modifier.size(16.dp))
-            Row(
-                Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White.copy(alpha = 0.18f)).padding(horizontal = 13.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                BbdIcon("list", 15.dp, Color.White, sw = 1.9f)
-                Text("도착 대기 목록 보기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            }
+        Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(T.blueSoft), contentAlignment = Alignment.Center) {
+            BbdIcon("truck", 23.dp, T.blue, sw = 1.9f)
         }
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("도착 대기", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
+                Text("$waiting", fontFamily = Mono, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = T.blue)
+                Text("건", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
+            }
+            Spacer(Modifier.size(3.dp))
+            Text("내 창고로 이동 중 · 탭하여 도착 확인", fontSize = 12.5.sp, color = T.ink3Read, lineHeight = 18.sp)
+        }
+        BbdIcon("chevR", 20.dp, T.ink3Read, sw = 2f)
     }
 }
 
