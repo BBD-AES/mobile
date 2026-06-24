@@ -92,6 +92,8 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
     var pickOpen by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<OrderUi?>(null) }
+    // 멱등 키 — 폼 진입당 1개(재시도/중복 제출 시 동일 키 재전송). 핸드오프 §4.3.
+    val idemKey = remember { java.util.UUID.randomUUID().toString() }
 
     val totalQty = lines.sumOf { it.second }
     val canSubmit = lines.isNotEmpty() && !submitting
@@ -116,7 +118,7 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
         val snapCustomer = customer.trim()
         scope.launch {
             val r: OrderUi = if (BuildConfig.USE_API) {
-                when (val out = repo.create(me.warehouse, snapCustomer, null, memo.trim(), lines.map { CustomerOrderLineRequest(it.first, it.second) })) {
+                when (val out = repo.create(me.warehouse, snapCustomer, null, memo.trim(), lines.map { CustomerOrderLineRequest(it.first, it.second) }, idemKey)) {
                     is CreateOrderResult.Ok -> { app.addOrder(out.coNumber, snapCustomer, snapItems, snapQty); OrderUi.Ok(out.coNumber, snapItems, snapQty, snapCustomer) }
                     CreateOrderResult.Unauthorized -> OrderUi.Unauthorized
                     CreateOrderResult.Offline -> OrderUi.Offline
