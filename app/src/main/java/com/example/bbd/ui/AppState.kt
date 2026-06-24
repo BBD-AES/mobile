@@ -22,6 +22,7 @@ import com.example.bbd.data.remote.dto.NotificationDto
 class AppData(
     inbound: List<SalesOrder>,
     received: List<SalesOrder>,
+    notifications: List<NotificationDto> = Seed.NOTIFICATIONS,
 ) {
     var inbound by mutableStateOf(inbound); private set
     var received by mutableStateOf(received); private set
@@ -34,7 +35,7 @@ class AppData(
     private var stockOverride by mutableStateOf<Map<String, Int>>(emptyMap())
 
     // ── 지점 알림함 — 시드 모드는 Seed.NOTIFICATIONS, API 모드는 화면이 repo 로 setNotifications. ──
-    var notifications by mutableStateOf<List<NotificationDto>>(Seed.NOTIFICATIONS); private set
+    var notifications by mutableStateOf(notifications); private set
     val unreadCount: Int get() = notifications.count { !it.read }
     fun loadNotifications(list: List<NotificationDto>) { notifications = list }
     /** 읽음 처리(낙관적) — 해당 id 를 read=true 로. 서버 PATCH 는 화면에서 best-effort 호출. */
@@ -104,4 +105,6 @@ val LocalAppData = staticCompositionLocalOf<AppData> { error("AppData not provid
 val LocalMe = staticCompositionLocalOf<CurrentUser> { Seed.USER }
 
 @Composable
-fun rememberAppData(): AppData = remember { AppData(Seed.INBOUND, Seed.RECEIVED) }
+fun rememberAppData(): AppData = remember {
+    AppData(Seed.INBOUND, Seed.RECEIVED, if (com.example.bbd.BuildConfig.USE_API) emptyList() else Seed.NOTIFICATIONS)
+}

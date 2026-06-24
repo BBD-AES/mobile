@@ -139,7 +139,7 @@ private fun WorklogScreenSeed(nav: Nav, contentPad: PaddingValues) {
     val list = all.filter { so ->
         bucket.match(so.status) &&
             (q.isBlank() || so.so.contains(q, ignoreCase = true) || so.fromWh.contains(q) ||
-                so.requestedBy.contains(q) || so.receivedBy.contains(q) ||
+                so.requestedBy.contains(q) || so.receivedBy.contains(q) || so.canceledBy.contains(q) ||
                 so.lines.any { it.name.contains(q) || it.sku.contains(q, ignoreCase = true) })
     }
 

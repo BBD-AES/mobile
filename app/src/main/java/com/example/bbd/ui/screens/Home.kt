@@ -27,8 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -63,13 +61,22 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val recent = app.received.take(3)
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
     var notifOpen by remember { mutableStateOf(false) }
+    var notifLoading by remember { mutableStateOf(false) }
+    var notifError by remember { mutableStateOf<String?>(null) }
+    var notifReload by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     val notifRepo = remember { NotificationRepository() }
-    // API 모드: 진입 시 지점 알림 로드(시드 모드는 Seed.NOTIFICATIONS 유지). 실패 시 빈 목록(시드 누출 방지).
-    LaunchedEffect(Unit) {
+    // API 모드: 지점 알림 로드(로딩/에러 추적, 재시도=notifReload). 시드 모드는 Seed.NOTIFICATIONS(빌더 주입) 유지.
+    LaunchedEffect(notifReload) {
         if (com.example.bbd.BuildConfig.USE_API) {
+            notifLoading = true; notifError = null
             app.loadNotifications(emptyList())
-            (notifRepo.inbox() as? UiState.Success)?.let { app.loadNotifications(it.data) }
+            when (val r = notifRepo.inbox()) {
+                is UiState.Success -> app.loadNotifications(r.data)
+                is UiState.Error -> notifError = r.message
+                else -> {}
+            }
+            notifLoading = false
         }
     }
 
@@ -163,11 +170,15 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
         NotificationSheet(
             open = notifOpen,
             items = app.notifications,
+            loading = notifLoading,
+            error = notifError,
+            onRetry = { notifReload++ },
             onMarkRead = { id ->
                 app.markNotifRead(id)
                 if (com.example.bbd.BuildConfig.USE_API && id != null) scope.launch { notifRepo.markRead(id) }
             },
-            onOpenSo = { nav.openQueue() },
+            // 도착 대기(IN_FULFILLMENT, 큐에 있는) SO 만 큐로 점프 — 백오더/입고완료는 없는 큐로 보내지 않음.
+            onOpenSo = { so -> if (app.inbound.any { it.so == so }) { notifOpen = false; nav.openQueue() } },
             onClose = { notifOpen = false },
         )
     }

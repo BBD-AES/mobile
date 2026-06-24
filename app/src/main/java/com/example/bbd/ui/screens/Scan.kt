@@ -436,7 +436,7 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
                         }.padding(vertical = 14.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(if (remaining > 0) "도착 대기 보기" else "작업 이력 보기", color = Color.White, fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(if (remaining > 0) "도착 대기 보기" else "이력 보기", color = Color.White, fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }

@@ -236,7 +236,7 @@ private data class Tab(val id: String, val label: String, val icon: String)
 private val TABS = listOf(
     Tab("home", "홈", "home"),
     Tab("inventory", "재고", "box"),
-    Tab("worklog", "작업이력", "list"),
+    Tab("worklog", "이력", "list"),
     Tab("my", "마이", "user"),
 )
 

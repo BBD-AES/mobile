@@ -43,7 +43,6 @@ import com.example.bbd.ui.LocalMe
 import com.example.bbd.ui.ModalHost
 import com.example.bbd.ui.Nav
 import com.example.bbd.ui.SoDetailSheet
-import com.example.bbd.ui.SoRow
 import com.example.bbd.ui.ToastHost
 import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.bottomBorder
@@ -57,7 +56,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val me = LocalMe.current
     val app = LocalAppData.current
     val perm = Seed.ROLE_PERMS[me.role] ?: Seed.ROLE_PERMS.getValue("BRANCH_STAFF")
-    val history = app.received.take(5)
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
     var confirmOut by remember { mutableStateOf(false) }
     var pwInfo by remember { mutableStateOf(false) }
