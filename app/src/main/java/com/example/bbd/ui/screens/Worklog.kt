@@ -18,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -107,7 +109,7 @@ private fun WorklogSegment(active: String, onPick: (String) -> Unit) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(T.lineSoft).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        SegTab("이동요청", active == "str", Modifier.weight(1f)) { onPick("str") }
+        SegTab("재고이동요청", active == "str", Modifier.weight(1f)) { onPick("str") }
         SegTab("수주", active == "co", Modifier.weight(1f)) { onPick("co") }
     }
 }
@@ -217,15 +219,15 @@ private fun WorklogScreenSeed(nav: Nav, contentPad: PaddingValues) {
                 when {
                     loading -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { repeat(4) { RowSkeleton() } }
                     list.isEmpty() && q.isNotBlank() -> EmptyState(
-                        "search", "검색 결과가 없습니다", "'$q'에 해당하는 이동요청을 찾지 못했습니다.",
+                        "search", "검색 결과가 없습니다", "'$q'에 해당하는 재고이동요청을 찾지 못했습니다.",
                         action = { GhostAction("검색 초기화") { q = "" } },
                     )
                     list.isEmpty() && filter != "ALL" -> EmptyState(
-                        "list", "해당 상태가 없습니다", "'${bucket.label}' 상태의 이동요청이 없습니다.",
+                        "list", "해당 상태가 없습니다", "'${bucket.label}' 상태의 재고이동요청이 없습니다.",
                         action = { GhostAction("전체 보기") { filter = "ALL" } },
                     )
                     list.isEmpty() -> EmptyState(
-                        "list", "이동요청 이력이 없습니다", "지점의 재고이동요청이 생기면 여기에 모입니다.",
+                        "list", "재고이동요청 이력이 없습니다", "지점의 재고이동요청이 생기면 여기에 모입니다.",
                         action = { SolidScanAction { nav.scan() } },
                     )
                     else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -308,7 +310,7 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
     val state by produceState<UiState<List<SalesOrderSummaryDto>>>(UiState.Loading, reloadKey, me.warehouse, period) {
         value = UiState.Loading
         value = if (me.warehouse.isBlank())
-            UiState.Error("지점 창고를 확인하지 못해 이동요청 이력을 불러올 수 없습니다.")
+            UiState.Error("지점 창고를 확인하지 못해 재고이동요청 이력을 불러올 수 없습니다.")
         else
             repo.branchOrders(me.warehouse, psd, ped)
     }
@@ -333,27 +335,23 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
                 WorklogSegment(seg) { seg = it }
                 Spacer(Modifier.size(14.dp))
                 if (seg == "str") {
-                    StatusFilterRow(filter) { filter = it }
-                    Spacer(Modifier.size(10.dp))
-                    PeriodChips(period) { period = it }
+                    FilterBar(STATUS_FILTERS, filter, { filter = it }, period) { period = it }
                     Spacer(Modifier.size(12.dp))
                     StateGate(
                         state = state,
                         onRetry = { reloadKey++ },
-                        empty = { EmptyState("list", "이동요청 이력이 없습니다", "지점의 재고이동요청이 생기면 여기에 모입니다.") },
+                        empty = { EmptyState("list", "재고이동요청 이력이 없습니다", "지점의 재고이동요청이 생기면 여기에 모입니다.") },
                     ) { items ->
                         val list = items.filter { bucket.match(it.status) }
-                        Text("지점 이동요청 · 총 ${list.size}건", fontSize = 12.5.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 14.dp))
+                        Text("지점 재고이동요청 · 총 ${list.size}건", fontSize = 12.5.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 14.dp))
                         if (list.isEmpty()) {
-                            Text("'${bucket.label}' 상태의 이동요청이 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            Text("'${bucket.label}' 상태의 재고이동요청이 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { HistoryApiRow(it) } }
                         }
                     }
                 } else {
-                    StatusFilterRowOf(CO_STATUS_FILTERS, coFilter) { coFilter = it }
-                    Spacer(Modifier.size(10.dp))
-                    PeriodChips(period) { period = it }
+                    FilterBar(CO_STATUS_FILTERS, coFilter, { coFilter = it }, period) { period = it }
                     Spacer(Modifier.size(12.dp))
                     StateGate(
                         state = coState,
@@ -428,13 +426,45 @@ private fun periodRange(id: String): Pair<String?, String?> {
     }
 }
 
+/** 상태 칩(스크롤) + 기간 드롭다운을 한 줄에 — 칩 줄 수를 줄여 밀도를 낮춘다(상태=주 필터, 기간=보조). */
 @Composable
-private fun PeriodChips(active: String, onPick: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        PERIODS.forEach { (id, label) -> StatusChip(label, active == id) { onPick(id) } }
+private fun FilterBar(
+    filters: List<StatusFilter>, statusActive: String, onStatus: (String) -> Unit,
+    period: String, onPeriod: (String) -> Unit,
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            filters.forEach { f -> StatusChip(f.label, statusActive == f.id) { onStatus(f.id) } }
+        }
+        PeriodDropdown(period, onPeriod)
+    }
+}
+
+/** 기간 — 칩 줄 대신 컴팩트 드롭다운(전체/오늘/최근7일/최근30일 → 서버 start_date/end_date). */
+@Composable
+private fun PeriodDropdown(active: String, onPick: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val on = active != "ALL"
+    val label = PERIODS.first { it.first == active }.second
+    Box {
+        Row(
+            Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) T.blueSoft else T.card)
+                .border(1.5.dp, if (on) T.hotBorder else T.line, RoundedCornerShape(999.dp))
+                .clickable { open = true }.padding(start = 11.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            BbdIcon("cal", 14.dp, if (on) T.blueInk else T.ink3Read, sw = 2f)
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) T.blueInk else T.ink2, maxLines = 1)
+            BbdIcon("chevD", 12.dp, if (on) T.blueInk else T.ink3Read, sw = 2f)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            PERIODS.forEach { (id, lbl) ->
+                DropdownMenuItem(
+                    text = { Text(lbl, fontSize = 14.sp, fontWeight = if (id == active) FontWeight.Bold else FontWeight.Normal, color = if (id == active) T.blueInk else T.ink) },
+                    onClick = { onPick(id); open = false },
+                )
+            }
+        }
     }
 }
 
