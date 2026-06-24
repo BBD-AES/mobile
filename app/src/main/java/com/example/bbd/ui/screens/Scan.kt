@@ -290,7 +290,7 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
         scope.launch {
             val r: UiState<Unit> = if (BuildConfig.USE_API) repo.receive(soNo) else UiState.Success(Unit)
             when (r) {
-                is UiState.Success -> { app.confirmReceive(soNo); remaining = others; submitting = false; doneOpen = true }
+                is UiState.Success -> { app.confirmReceive(soNo, me.name); remaining = others; submitting = false; doneOpen = true }
                 is UiState.Error -> { submitting = false; error = r.message }
                 else -> submitting = false
             }

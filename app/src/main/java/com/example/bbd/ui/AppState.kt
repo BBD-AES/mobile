@@ -32,12 +32,12 @@ class AppData(
     var orders by mutableStateOf<List<OrderRec>>(emptyList()); private set
     private var stockOverride by mutableStateOf<Map<String, Int>>(emptyMap())
 
-    /** 도착 확인(입고 확정) — inbound 에서 제거 → received 맨 앞 추가. 같은 발주 중복 방지. */
-    fun confirmReceive(soNumber: String) {
+    /** 도착 확인(입고 확정) — inbound 에서 제거 → received 맨 앞 추가. 같은 발주 중복 방지. by=입고자 이름. */
+    fun confirmReceive(soNumber: String, by: String = "") {
         val hit = inbound.firstOrNull { it.so == soNumber } ?: return
         inbound = inbound.filterNot { it.so == soNumber }
         val now = nowHHMM()
-        val moved = hit.copy(status = "RECEIVED", date = Seed.DEMO_TODAY, time = now)
+        val moved = hit.copy(status = "RECEIVED", date = Seed.DEMO_TODAY, time = now, receivedBy = by.ifBlank { hit.receivedBy })
         if (received.none { it.so == soNumber }) received = listOf(moved) + received
     }
 
