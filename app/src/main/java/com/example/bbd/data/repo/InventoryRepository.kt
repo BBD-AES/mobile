@@ -62,7 +62,8 @@ class InventoryRepository(
                 referenceNumber = referenceNumber,
                 lines = listOf(StockOutboundLine(sku, quantity, warehouseCode, unitPrice)),
             )
-            val resp = api.outbound(req)
+            // 게이트웨이 멱등 강제(IDEM400 방지): referenceNumber 를 Idempotency-Key 로 — 재시도 시 동일 키.
+            val resp = api.outbound(referenceNumber, req)
             when {
                 resp.isSuccessful -> OutboundResult.Ok(referenceNumber, serverAvailable(warehouseCode, sku) ?: 0)
                 resp.code() == 409 -> OutboundResult.Insufficient(serverAvailable(warehouseCode, sku) ?: 0)

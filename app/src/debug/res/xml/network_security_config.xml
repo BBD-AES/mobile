@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  디버그 전용 오버라이드(릴리스엔 병합되지 않음).
+  모든 평문 HTTP 허용 — 에뮬레이터·로컬·Tailscale 등 임의 dev 게이트웨이(http://...)에 도달하기 위함.
+  main/AndroidManifest.xml 의 android:networkSecurityConfig 가 디버그 빌드에선 이 파일을 사용한다.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

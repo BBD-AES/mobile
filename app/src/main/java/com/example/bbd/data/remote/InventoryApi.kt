@@ -5,6 +5,7 @@ import com.example.bbd.data.remote.dto.StockPageDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Query
 
@@ -27,8 +28,12 @@ interface InventoryApi {
 
     /**
      * 출고(지점 재고 차감). 성공 204(No Content) · 부족 시 409(INSUFFICIENT_STOCK).
-     * 멱등은 referenceNumber 로 서비스에서 처리(헤더 없음). 비-2xx 분기 위해 Response 래핑.
+     * 게이트웨이가 변경 POST 에 Idempotency-Key 헤더를 강제(없으면 400 IDEM400) → referenceNumber 를 키로 전달.
+     * inventory 도 referenceNumber(body)로 멱등 dedup — 재시도는 같은 referenceNumber = 같은 키. 비-2xx 분기 위해 Response 래핑.
      */
     @POST("inventory/api/v1/stocks/outbound")
-    suspend fun outbound(@Body request: StockOutboundRequest): Response<Unit>
+    suspend fun outbound(
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: StockOutboundRequest,
+    ): Response<Unit>
 }
