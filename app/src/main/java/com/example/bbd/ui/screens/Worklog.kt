@@ -80,7 +80,7 @@ private fun WorklogScreenSeed(nav: Nav, contentPad: PaddingValues) {
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
             Header(
-                title = "내 작업 이력", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
+                title = "내 작업 이력", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
                 onRefresh = { app.refresh() }, refreshing = app.refreshing, lastRefresh = app.lastRefresh,
                 // 작업이력은 탭 루트라 pop() 이 무동작 → 재고/마이 탭과 동일하게 홈 탭으로.
                 onBack = { nav.tab("home") }, onRight = nav.openQueue,
@@ -221,7 +221,7 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
             Header(
-                title = "내 작업 이력", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
+                title = "내 작업 이력", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount,
                 onRefresh = { reloadKey++ }, lastRefresh = app.lastRefresh,
                 onBack = { nav.pop() }, onRight = nav.openQueue,
             )

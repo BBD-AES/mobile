@@ -374,51 +374,8 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
             Spacer(Modifier.size(18.dp))
         }
 
-        // 입고 스캔 — 도착 대기 발주 있으면 활성, 없으면 역할별 다음 경로(dead-end 금지).
-        if (hasLink) {
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(T.blue)
-                    .clickable {
-                        onClose()
-                        val so = app.inbound.first { soo -> soo.lines.any { it.sku == p.sku } }
-                        nav.pushPreset("scan-in", so)
-                    }.padding(vertical = 15.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BbdIcon("scan", 19.dp, Color.White, sw = 2f)
-                    Text("이 부품 입고 스캔", color = Color.White, fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            }
-        } else {
-            Column(Modifier.fillMaxWidth().bbdCard().background(Color(0xFFFAFBFE)).padding(horizontal = 16.dp, vertical = 15.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                    BbdIcon("info", 19.dp, T.ink3Read)
-                    Text("이 부품이 포함된 도착 대기 발주가 없어 입고 스캔을 시작할 수 없습니다.", fontSize = 12.5.sp, color = T.ink2, lineHeight = 18.sp)
-                }
-                Spacer(Modifier.size(13.dp))
-                if (me.role == "BRANCH_MANAGER") {
-                    Box(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card).border(1.5.dp, T.line, RoundedCornerShape(13.dp))
-                            .clickable { onClose(); nav.openQueue() }.padding(vertical = 14.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            BbdIcon("doc", 17.dp, T.ink2)
-                            Text("발주 요청은 웹 ERP에서", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink)
-                        }
-                    }
-                } else {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(T.card).border(1.dp, T.line, RoundedCornerShape(11.dp)).padding(horizontal = 13.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp),
-                    ) {
-                        BbdIcon("user", 16.dp, T.ink3Read)
-                        Text("발주가 필요하면 점장에게 요청하세요.", fontSize = 12.5.sp, color = T.ink2)
-                    }
-                }
-            }
-        }
+        // (입고는 SO 전량 일괄 모델 — 부품 단위 입고 스캔 없음. 입고는 도착 대기 큐/입고 스캔 탭에서.
+        //  부품 상세는 정보(재고+도착예정) + '이 품목 출고'만 둔다.)
     }
 }
 

@@ -95,13 +95,10 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                     Spacer(Modifier.size(14.dp))
                     Row(Modifier.fillMaxWidth().topBorder(T.lineSoft).padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         BbdIcon("pin", 14.dp, T.ink3Read)
-                        // 지점 — /me 가 지점을 주지 않으면(실 API) tenancy 매핑 대기 안내(시드 날조 금지).
-                        // 데모/시드는 값이 차 있어 외형 불변.
-                        if (me.branch.isBlank() && me.branchCode.isBlank()) {
-                            Text("지점 매핑 연동 대기", fontSize = 12.5.sp, color = T.ink3Read)
-                        } else {
-                            if (me.branch.isNotBlank()) Text("${me.branch} · ", fontSize = 12.5.sp, color = T.ink2)
-                            CodeText(me.branchCode, size = 12.5.sp)
+                        // 지점명(tenancyName) + 창고코드(로그인 시 inventory 이름매칭으로 해석, PR#18).
+                        if (me.branch.isNotBlank()) Text(me.branch, fontSize = 12.5.sp, color = T.ink2)
+                        if (me.branchCode.isNotBlank()) {
+                            Spacer(Modifier.size(6.dp)); CodeText(me.branchCode, size = 12.5.sp)
                         }
                         Spacer(Modifier.weight(1f))
                         Text("정보 수정은 관리자 문의", fontSize = 12.sp, color = T.ink3Read)
@@ -135,21 +132,7 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                 }
                 Spacer(Modifier.size(16.dp))
 
-                // 최근 입고 확인 미리보기
-                Column(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 16.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("최근 입고 확인", fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.weight(1f))
-                        Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { nav.tab("worklog") }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("전체 보기 ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.blue)
-                            BbdIcon("chevR", 15.dp, T.blue)
-                        }
-                    }
-                    history.forEachIndexed { i, so ->
-                        SoRow(so, toShort = me.warehouseName.removeSuffix(" 창고"), onClick = { sel = so }, divider = i < history.lastIndex)
-                    }
-                    Spacer(Modifier.size(4.dp))
-                }
-                Spacer(Modifier.size(16.dp))
+                // (작업 이력은 별도 '작업이력' 탭으로 분리 — 마이에서 제거)
 
                 // 설정
                 Column(Modifier.fillMaxWidth().bbdCard()) {
@@ -157,11 +140,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                     val pwDays = daysSince(me.pwChanged)
                     val pwSub = if (pwDays != null) "마지막 변경 ${pwDays}일 전 · Keycloak에서 변경" else "Keycloak에서 관리"
                     SettingRow("key", "비밀번호", pwSub, subAmber = pwDays != null, divider = true, right = { BbdIcon("chevR", 18.dp, T.ink3Read) }) { pwInfo = true }
-                    SettingRow("bell", "알림 설정", "지점 알림함 연동 준비 중", divider = true, right = {
-                        Box(Modifier.clip(RoundedCornerShape(7.dp)).background(T.lineSoft).padding(horizontal = 9.dp, vertical = 4.dp)) {
-                            Text("준비 중", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
-                        }
-                    }) { toast = "알림 설정은 지점 알림함 연동 후 제공됩니다." }
                     SettingRow("info", "앱 정보", "v0.6 · 현장 모바일", divider = false, right = { BbdIcon("chevR", 18.dp, T.ink3Read) }) { appInfo = true }
                 }
                 Spacer(Modifier.size(18.dp))
@@ -171,7 +149,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(T.card).border(1.dp, T.line, RoundedCornerShape(14.dp)).clickable { confirmOut = true }.padding(vertical = 15.dp),
                     horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    BbdIcon("logout", 18.dp, T.red); Spacer(Modifier.size(8.dp))
                     Text("로그아웃", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = T.red)
                 }
             }
