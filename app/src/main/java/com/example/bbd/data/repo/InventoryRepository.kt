@@ -79,6 +79,23 @@ class InventoryRepository(
         }
     }
 
+    /**
+     * 지점명(tenancyName) → 창고코드 해석. /api/auth/me·/users/me 가 창고를 주지 않으므로,
+     * 로그인 후 inventory 창고목록에서 이름 일치(앞뒤공백·대소문자 무시) 창고의 code·name 을 보강한다.
+     * 실패/미일치 → null(호출측은 '지점 매핑 대기' 빈값 유지). 반환 = (warehouseCode, warehouseName).
+     */
+    suspend fun resolveWarehouseByName(tenancyName: String): Pair<String, String>? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val target = tenancyName.trim()
+                val wh = api.warehouses().content.firstOrNull {
+                    (it.name ?: "").trim().equals(target, ignoreCase = true)
+                }
+                val code = wh?.code ?: ""
+                if (code.isBlank()) null else code to (wh?.name ?: target)
+            }.getOrNull()
+        }
+
     /** 특정 창고·SKU 의 서버 실가용재고 1건(차감 후 잔량·부족 안내용). 실패하면 null. */
     private suspend fun serverAvailable(warehouseCode: String, sku: String): Int? =
         runCatching {
