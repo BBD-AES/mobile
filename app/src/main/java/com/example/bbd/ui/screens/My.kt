@@ -61,7 +61,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
     var confirmOut by remember { mutableStateOf(false) }
     var pwInfo by remember { mutableStateOf(false) }
-    var appInfo by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf("") }
     if (toast.isNotBlank()) LaunchedEffect(toast) { kotlinx.coroutines.delay(2200); toast = "" }
 
@@ -139,8 +138,7 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                     // 마지막 변경일 — /me 에 없음(Keycloak 소관). 값 없으면 'Keycloak에서 관리'만 표기(날조 금지).
                     val pwDays = daysSince(me.pwChanged)
                     val pwSub = if (pwDays != null) "마지막 변경 ${pwDays}일 전 · Keycloak에서 변경" else "Keycloak에서 관리"
-                    SettingRow("key", "비밀번호", pwSub, subAmber = pwDays != null, divider = true, right = { BbdIcon("chevR", 18.dp, T.ink3Read) }) { pwInfo = true }
-                    SettingRow("info", "앱 정보", "v0.6 · 현장 모바일", divider = false, right = { BbdIcon("chevR", 18.dp, T.ink3Read) }) { appInfo = true }
+                    SettingRow("key", "비밀번호", pwSub, subAmber = pwDays != null, divider = false, right = { BbdIcon("chevR", 18.dp, T.ink3Read) }) { pwInfo = true }
                 }
                 Spacer(Modifier.size(18.dp))
 
@@ -173,20 +171,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
             }
         }
 
-        // 앱 정보 모달
-        ModalHost(appInfo, { appInfo = false }) {
-            Column(Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(T.ink), contentAlignment = Alignment.Center) {
-                    Text("BBD", fontFamily = Mono, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color.White)
-                }
-                Spacer(Modifier.size(12.dp))
-                Text("BBD ERP 현장 모바일", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
-                Spacer(Modifier.size(4.dp))
-                Text("버전 v0.6 · 사내용 프로토타입", fontSize = 13.sp, color = T.ink2)
-                Spacer(Modifier.size(18.dp))
-                SolidBtn("확인", Modifier.fillMaxWidth()) { appInfo = false }
-            }
-        }
 
         // 로그아웃 확인 모달
         ModalHost(confirmOut, { confirmOut = false }) {
