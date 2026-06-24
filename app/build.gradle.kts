@@ -58,6 +58,20 @@ android {
             )
         }
     }
+
+    // 데모(시드)↔라이브(실 게이트웨이) 토글 — AS 'Build Variants' 드롭다운에서 demoDebug↔liveDebug 선택만(파일 수정 불필요).
+    // demo = USE_API false(번들 시드 카탈로그). live = USE_API true(BASE_URL/AUTH 는 BBD_* 프로퍼티, 기본 10.0.2.2).
+    flavorDimensions += "backend"
+    productFlavors {
+        create("demo") {
+            dimension = "backend"
+            buildConfigField("boolean", "USE_API", "false")
+        }
+        create("live") {
+            dimension = "backend"
+            buildConfigField("boolean", "USE_API", "true")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
