@@ -4,11 +4,15 @@ import com.example.bbd.data.Part
 import com.example.bbd.data.StockStatus
 import com.example.bbd.data.remote.InventoryApi
 import com.example.bbd.data.remote.Net
+import com.example.bbd.data.remote.OutboundResult
 import com.example.bbd.data.remote.UiState
 import com.example.bbd.data.remote.dto.StockItemDto
+import com.example.bbd.data.remote.dto.StockOutboundLine
+import com.example.bbd.data.remote.dto.StockOutboundRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /**
  * 재고(Stock) 데이터 소스 — inventory 서비스.
@@ -40,6 +44,45 @@ class InventoryRepository(
                 UiState.Error(e.message ?: "네트워크 오류")
             }
         }
+
+    /**
+     * 출고(지점 재고 차감, 단일 라인). 성공이면 차감 후 서버 가용재고를 재조회해 함께 반환,
+     * 409 면 서버가 보고한 현재 가용재고를 함께 반환(README '가용 N으로 수량 조정' 안내용).
+     * unitPrice 는 모바일에 가격 데이터가 없어 0(원장 평가액 N/A, 차감만 의미).
+     */
+    suspend fun outbound(
+        referenceNumber: String,
+        warehouseCode: String,
+        sku: String,
+        quantity: Int,
+        unitPrice: Int = 0,
+    ): OutboundResult = withContext(Dispatchers.IO) {
+        try {
+            val req = StockOutboundRequest(
+                referenceNumber = referenceNumber,
+                lines = listOf(StockOutboundLine(sku, quantity, warehouseCode, unitPrice)),
+            )
+            val resp = api.outbound(req)
+            when {
+                resp.isSuccessful -> OutboundResult.Ok(referenceNumber, serverAvailable(warehouseCode, sku) ?: 0)
+                resp.code() == 409 -> OutboundResult.Insufficient(serverAvailable(warehouseCode, sku) ?: 0)
+                resp.code() == 401 -> OutboundResult.Unauthorized
+                else -> OutboundResult.Error("출고 실패 (${resp.code()})")
+            }
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: IOException) {
+            OutboundResult.Offline
+        } catch (e: Exception) {
+            OutboundResult.Error(e.message ?: "네트워크 오류")
+        }
+    }
+
+    /** 특정 창고·SKU 의 서버 실가용재고 1건(차감 후 잔량·부족 안내용). 실패하면 null. */
+    private suspend fun serverAvailable(warehouseCode: String, sku: String): Int? =
+        runCatching {
+            api.stocks(warehouseCode = warehouseCode, sku = sku, size = 1).content.firstOrNull()?.availableStock
+        }.getOrNull()
 
     private fun StockItemDto.toPart(): Part = Part(
         sku = sku ?: "",

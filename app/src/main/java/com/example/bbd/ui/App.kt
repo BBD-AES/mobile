@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.bbd.data.CurrentUser
+import com.example.bbd.data.Part
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
 import com.example.bbd.ui.screens.ArrivalQueueSheet
@@ -39,6 +40,8 @@ import com.example.bbd.ui.screens.HomeScreen
 import com.example.bbd.ui.screens.InventoryScreen
 import com.example.bbd.ui.screens.LoginScreen
 import com.example.bbd.ui.screens.MyScreen
+import com.example.bbd.ui.screens.OrderCreateScreen
+import com.example.bbd.ui.screens.ScanOutScreen
 import com.example.bbd.ui.screens.ScanScreen
 import com.example.bbd.ui.screens.WorklogScreen
 import com.example.bbd.ui.theme.T
@@ -58,6 +61,8 @@ class Nav(
     val loginAs: (CurrentUser) -> Unit,
     val logout: () -> Unit,
     val scan: () -> Unit,
+    val scanOut: () -> Unit,
+    val orderNew: () -> Unit,
     val openQueue: () -> Unit,
     val openInventory: (String) -> Unit,
     val queueCount: Int,
@@ -106,6 +111,8 @@ fun BbdApp() {
         loginAs = { user -> me = user; stack = listOf(Route("home")) },
         logout = { stack = listOf(Route("login")) },
         scan = { stack = stack + Route("scan-in") },
+        scanOut = { stack = stack + Route("scan-out") },
+        orderNew = { stack = stack + Route("order-new") },
         openQueue = { queueOpen = true },
         openInventory = ::openInventory,
         queueCount = app.inbound.size,
@@ -116,8 +123,13 @@ fun BbdApp() {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
                 BackHandler(enabled = top.screen != "login" || stack.size > 1 || queueOpen) {
                     when {
+                        // 1) 전역 큐 시트 열림 → 닫기
                         queueOpen -> queueOpen = false
+                        // 2) 푸시된 화면(스택 깊이>1) → pop
                         stack.size > 1 -> stack = stack.dropLast(1)
+                        // 3) 비-홈 탭 루트(깊이==1) → 홈 탭으로
+                        top.screen in TAB_ROUTES && top.screen != "home" -> nav.tab("home")
+                        // 4) 홈 탭 루트(또는 login) → 더블백 종료
                         else -> {
                             val now = System.currentTimeMillis()
                             if (now - lastBackAt < 2000) activity?.finish()
@@ -136,15 +148,16 @@ fun BbdApp() {
                         "my" -> MyScreen(nav, contentPad)
                         "worklog" -> WorklogScreen(nav, contentPad)
                         "scan-in" -> ScanScreen(nav, top.preset as? SalesOrder)
+                        "scan-out" -> ScanOutScreen(nav, top.preset as? Part)
+                        "order-new" -> OrderCreateScreen(nav, top.preset as? Part)
                         else -> HomeScreen(nav, contentPad)
                     }
                 }
 
-                // 탭바 셸 — 탭 루트에서만 1회 노출. 스캔은 중앙 FAB.
+                // 탭바 셸 — 탭 루트에서만 1회 노출. 쓰기 액션은 홈 '작업' 카드(중앙 FAB 제거 §IA).
                 if (isTabRoot) {
                     Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
                         TabBar(active = top.screen, onTab = nav.tab)
-                        ScanFab(Modifier.align(Alignment.TopCenter), onClick = nav.scan)
                     }
                 }
 
@@ -159,23 +172,6 @@ fun BbdApp() {
                 ToastHost(backToast)
             }
         }
-    }
-}
-
-/** 탭바 위로 돌출한 중앙 스캔 FAB → 입고 스캔(scan-in). */
-@Composable
-private fun ScanFab(modifier: Modifier, onClick: () -> Unit) {
-    Box(
-        modifier
-            .graphicsLayer { translationY = -26.dp.toPx() }
-            .size(58.dp)
-            .shadow(10.dp, CircleShape, clip = false, ambientColor = T.blue, spotColor = T.blue)
-            .clip(CircleShape)
-            .background(T.blue)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        BbdIcon("scan", 28.dp, Color.White, sw = 2.1f)
     }
 }
 

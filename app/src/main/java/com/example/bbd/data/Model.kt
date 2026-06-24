@@ -146,6 +146,34 @@ fun com.example.bbd.data.remote.dto.MeDto.toCurrentUser(): CurrentUser {
     )
 }
 
+/**
+ * user-service `GET /user/api/v1/users/me`(권위 role + 지점명) → 앱 [CurrentUser] 매핑.
+ *
+ * `/api/auth/me`(신원-only, [MeDto.toCurrentUser])와 달리:
+ *  - role: **서버 권위값(UserRole enum 그대로)** — position 기반 best-effort 추정 폐기.
+ *  - branch: **tenancyName(실 지점명)** 직접 사용.
+ *  - branchCode/warehouse/warehouseName: user 도메인에 없음 → **빈값**. 시드로 날조하지 않는다(재고=tenancy 연동 대기).
+ *  - pwChanged/pwDaysAgo: 응답에 없음 → 빈값/0(Keycloak 소관, 표시만 비움).
+ */
+fun com.example.bbd.data.remote.dto.UserSnapshotDto.toCurrentUser(): CurrentUser =
+    CurrentUser(
+        name = displayName ?: (employeeNumber ?: ""),
+        // 서버 권위 role(UserRole enum 문자열). 비면 안전 기본값 BRANCH_STAFF.
+        role = role?.ifBlank { null } ?: "BRANCH_STAFF",
+        position = position ?: "",
+        emp = employeeNumber ?: "",
+        email = email ?: "",
+        // 권위 지점명 — tenancyName 직접 사용(빈 문자열 폴백).
+        branch = tenancyName ?: "",
+        // user 도메인에 없음 — 날조 금지(빈값). branchCode/창고는 tenancy 연동 대기.
+        branchCode = "",
+        warehouse = "",
+        warehouseName = "",
+        // 응답에 없음 — Keycloak 소관. 표시만 비움.
+        pwChanged = "",
+        pwDaysAgo = 0,
+    )
+
 /** 역할별 모바일 이용 권한(마이 > 이용 권한). can=모바일 가능 / web=웹 ERP에서 / cant=불가. */
 data class RolePerms(
     val can: List<String>,

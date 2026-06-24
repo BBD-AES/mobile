@@ -1,9 +1,14 @@
 package com.example.bbd.data.remote
 
+import com.example.bbd.data.remote.dto.CreateCustomerOrderRequest
+import com.example.bbd.data.remote.dto.CustomerOrderDetailDto
 import com.example.bbd.data.remote.dto.SalesOrderPageDto
 import retrofit2.Response
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.PATCH
+import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -27,4 +32,14 @@ interface SalesApi {
     /** 도착 확인(입고 확정): IN_FULFILLMENT → RECEIVED. */
     @PATCH("sales/api/v1/sales-orders/{soNumber}/receive")
     suspend fun receive(@Path("soNumber") soNumber: String): Response<Unit>
+
+    /**
+     * 현장 수주 등록(CustomerOrder 생성, OPEN). @Idempotent → Idempotency-Key 헤더 필수(서비스가 멱등 처리).
+     * 비-2xx 를 직접 분기하려고 Response 래핑(401/검증오류를 예외로 던지지 않음).
+     */
+    @POST("sales/api/v1/customer-orders")
+    suspend fun createCustomerOrder(
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body request: CreateCustomerOrderRequest,
+    ): Response<CustomerOrderDetailDto>
 }

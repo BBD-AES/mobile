@@ -325,6 +325,19 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
             }
             Box(Modifier.padding(start = 15.dp, end = 15.dp, bottom = 14.dp)) { StatusPill(p.status) }
         }
+        Spacer(Modifier.size(14.dp))
+
+        // 이 품목 출고 — 해당 SKU 프리필로 출고 폼 직행(§2 컨텍스트 진입).
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(T.card).border(1.5.dp, T.line, RoundedCornerShape(14.dp))
+                .clickable { onClose(); nav.pushPreset("scan-out", p) }.padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BbdIcon("arrowUp", 18.dp, T.blueDeep, sw = 2f)
+                Text("이 품목 출고", color = T.blueDeep, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        }
         Spacer(Modifier.size(18.dp))
 
         // 최근 입고 (RECEIVED 파생)
