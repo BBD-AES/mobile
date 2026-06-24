@@ -83,14 +83,15 @@ private fun InventoryBody(
     apiMode: Boolean,
 ) {
     var q by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf(initialFilter ?: "all") } // all/부족/없음/정상/카테고리
+    // 상태(정상/부족/없음)와 카테고리를 독립 필터로 분리(AND 결합). 홈 딥링크 initialFilter 는 상태값이라 statusFilter 로.
+    var statusFilter by remember { mutableStateOf(if (initialFilter in listOf("부족", "없음", "정상")) initialFilter!! else "all") }
+    var catFilter by remember { mutableStateOf("all") }
     var sel by remember { mutableStateOf<Part?>(null) }
 
     val list = parts.filter { p ->
         (q.isBlank() || p.name.contains(q) || p.sku.contains(q, ignoreCase = true)) &&
-            (filter == "all" ||
-                (filter in listOf("부족", "없음", "정상")) && p.status.label == filter ||
-                (filter !in listOf("부족", "없음", "정상")) && p.cat == filter)
+            (statusFilter == "all" || p.status.label == statusFilter) &&
+            (catFilter == "all" || p.cat == catFilter)
     }.sortedBy { sevOf(it) }
 
     Box(Modifier.fillMaxSize().padding(contentPad)) {
@@ -147,12 +148,16 @@ private fun InventoryBody(
                 InventorySearch(q, { q = it }) { sel = Seed.partBySku("BBD-OIL-1006") }
                 Spacer(Modifier.size(12.dp))
 
-                // 필터 칩 — 가로 스크롤. 선택 칩 = blueSoft/#c9d6f7/blueInk.
-                FilterChips(filter, { filter = it }, parts, summary, categories, apiMode)
+                // 필터 — 상태(정상/부족/없음)와 카테고리를 분리한 2단 칩. 각 줄 단일선택, 둘은 AND.
+                FilterChips(statusFilter, { statusFilter = it }, catFilter, { catFilter = it }, parts, summary, categories, apiMode)
                 Spacer(Modifier.size(14.dp))
 
-                if (filter != "all") {
-                    Text("'$filter' 필터 · ${list.size}건 · 심각도순", fontSize = 12.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+                val activeLabel = listOfNotNull(
+                    statusFilter.takeIf { it != "all" },
+                    catFilter.takeIf { it != "all" },
+                ).joinToString(" · ")
+                if (activeLabel.isNotEmpty()) {
+                    Text("$activeLabel · ${list.size}건 · 심각도순", fontSize = 12.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
                 }
 
                 if (list.isEmpty()) {
@@ -208,18 +213,28 @@ private fun InventorySearch(value: String, onValue: (String) -> Unit, onScan: ()
 }
 
 @Composable
-private fun FilterChips(filter: String, onPick: (String) -> Unit, parts: List<Part>, summary: InvSummary, categories: List<String>, apiMode: Boolean) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        // 전체/카테고리 카운트는 실데이터(parts·summary)에서 — API 모드도 시드(Seed.PARTS)가 아니라 fetch 결과 기준.
-        FilterChip("전체", filter == "all", count = summary.total) { onPick("all") }
+private fun FilterChips(
+    status: String, onStatus: (String) -> Unit,
+    cat: String, onCat: (String) -> Unit,
+    parts: List<Part>, summary: InvSummary, categories: List<String>, apiMode: Boolean,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        // 상태 필터 — 시드만(API 는 안전재고 DTO 보강 후 상태 판정 가능).
         if (!apiMode) {
-            FilterChip("정상", filter == "정상", count = summary.ok, icon = "check", iconColor = T.green) { onPick("정상") }
-            FilterChip("부족", filter == "부족", count = summary.short, icon = "alert", iconColor = T.amber) { onPick("부족") }
-            FilterChip("없음", filter == "없음", count = summary.none, icon = "ban", iconColor = T.red) { onPick("없음") }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                FilterChip("전체", status == "all", count = summary.total) { onStatus("all") }
+                FilterChip("정상", status == "정상", count = summary.ok, icon = "check", iconColor = T.green) { onStatus("정상") }
+                FilterChip("부족", status == "부족", count = summary.short, icon = "alert", iconColor = T.amber) { onStatus("부족") }
+                FilterChip("없음", status == "없음", count = summary.none, icon = "ban", iconColor = T.red) { onStatus("없음") }
+            }
         }
-        categories.forEach { c ->
-            val n = if (apiMode) parts.count { it.cat == c } else null
-            FilterChip(c, filter == c, count = n) { onPick(c) }
+        // 카테고리 필터 — 별도 줄.
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            FilterChip("전체", cat == "all", count = if (apiMode) summary.total else null) { onCat("all") }
+            categories.forEach { c ->
+                val n = if (apiMode) parts.count { it.cat == c } else null
+                FilterChip(c, cat == c, count = n) { onCat(c) }
+            }
         }
     }
 }
