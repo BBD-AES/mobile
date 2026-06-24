@@ -17,7 +17,7 @@ val authIssuer = (project.findProperty("BBD_AUTH_ISSUER") as? String) ?: "https:
 val authClientId = (project.findProperty("BBD_AUTH_CLIENT_ID") as? String) ?: "bbd-mobile-android"
 val authRedirect = (project.findProperty("BBD_AUTH_REDIRECT") as? String) ?: "com.bbd.mobile:/oauth2redirect"
 val authEndSession = (project.findProperty("BBD_AUTH_END_SESSION_REDIRECT") as? String) ?: "com.bbd.mobile:/logout"
-val authScopes = (project.findProperty("BBD_AUTH_SCOPES") as? String) ?: "openid email bbd-claims"
+val authScopes = (project.findProperty("BBD_AUTH_SCOPES") as? String) ?: "openid profile email bbd-claims"
 val authRedirectScheme = (project.findProperty("BBD_AUTH_REDIRECT_SCHEME") as? String) ?: "com.bbd.mobile"
 
 android {
