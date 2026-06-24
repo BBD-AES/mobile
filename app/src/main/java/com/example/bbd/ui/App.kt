@@ -40,6 +40,8 @@ import com.example.bbd.data.CurrentUser
 import com.example.bbd.data.Part
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
+import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.repo.SalesOrderRepository
 import com.example.bbd.ui.screens.ArrivalQueueSheet
 import com.example.bbd.ui.screens.HomeScreen
 import com.example.bbd.ui.screens.InventoryScreen
@@ -104,6 +106,28 @@ fun BbdApp() {
     }
 
     val scope = rememberCoroutineScope()
+
+    // 도착 대기 — API 모드는 sales arrivals(status=IN_FULFILLMENT, 내 창고) 로드(로그인·큐 열 때 갱신).
+    // 시드 모드는 app.inbound. (요약 DTO엔 라인/출처 없음 → 큐 행은 SO·상태·이동중만, 라인 상세는 후속.)
+    val salesRepo = remember { SalesOrderRepository() }
+    var apiArrivals by remember { mutableStateOf<List<SalesOrder>>(emptyList()) }
+    LaunchedEffect(me.warehouse, queueOpen) {
+        if (com.example.bbd.BuildConfig.USE_API && me.warehouse.isNotBlank()) {
+            (salesRepo.arrivals(me.warehouse) as? UiState.Success)?.let { res ->
+                apiArrivals = res.data.map { d ->
+                    SalesOrder(
+                        so = d.soNumber ?: "",
+                        status = d.status ?: "IN_FULFILLMENT",
+                        fromWh = "",
+                        toCode = d.toWarehouseCode ?: "",
+                        lines = emptyList(),
+                    )
+                }
+            }
+        }
+    }
+    val arrivalItems = if (com.example.bbd.BuildConfig.USE_API) apiArrivals else app.inbound
+
     // Keycloak end-session 복귀(com.bbd.mobile:/logout) — 결과 무관하게 Secure 토큰 전부 삭제 + 로그인 이동.
     val endSessionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -139,7 +163,7 @@ fun BbdApp() {
         orderNew = { stack = stack + Route("order-new") },
         openQueue = { queueOpen = true },
         openInventory = ::openInventory,
-        queueCount = app.inbound.size,
+        queueCount = arrivalItems.size,
     )
 
     CompositionLocalProvider(LocalAppData provides app, LocalMe provides me) {
@@ -188,7 +212,8 @@ fun BbdApp() {
                 // 전역 도착 대기 큐 시트 — 헤더 트럭/홈 히어로에서 진입. 항목 탭 → 입고 확인 폼 프리셋.
                 ArrivalQueueSheet(
                     open = queueOpen && top.screen != "login",
-                    items = app.inbound,
+                    items = arrivalItems,
+                    apiMode = com.example.bbd.BuildConfig.USE_API,
                     onClose = { queueOpen = false },
                     onTap = { so -> queueOpen = false; stack = stack + Route("scan-in", so) },
                 )

@@ -57,7 +57,7 @@ import kotlinx.coroutines.launch
 fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val me = LocalMe.current
     val app = LocalAppData.current
-    val waiting = app.inbound.size
+    val waiting = nav.queueCount
     val recent = app.received.take(3)
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
     var notifOpen by remember { mutableStateOf(false) }

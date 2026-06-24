@@ -37,6 +37,7 @@ import com.example.bbd.ui.theme.T
 fun BoxScope.ArrivalQueueSheet(
     open: Boolean,
     items: List<SalesOrder>,
+    apiMode: Boolean = false,
     onClose: () -> Unit,
     onTap: (SalesOrder) -> Unit,
 ) {
@@ -62,7 +63,7 @@ fun BoxScope.ArrivalQueueSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items.forEach { so ->
                         Box(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 14.dp)) {
-                            SoRow(so, inbound = true, toShort = me.warehouseName.removeSuffix(" 창고"), onClick = { onTap(so) })
+                            SoRow(so, inbound = true, apiMode = apiMode, toShort = me.warehouseName.removeSuffix(" 창고"), onClick = { onTap(so) })
                         }
                     }
                 }
