@@ -13,6 +13,11 @@ import net.openid.appauth.AuthorizationService
 import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.EndSessionRequest
 import net.openid.appauth.ResponseTypeValues
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.FormBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /**
  * Keycloak OIDC(Authorization Code + PKCE/S256) 인증 — AppAuth 래퍼.
@@ -92,7 +97,26 @@ object AuthManager {
         }
     }
 
-    /** 로그아웃 = end-session Intent(없으면 null). 호출부에서 launch 후 [clearLocal]. */
+    /**
+     * 로그아웃 1단계 — refresh_token back-channel 무효화(public client, secret 없음).
+     * POST {end_session_endpoint} (client_id + refresh_token, x-www-form-urlencoded). best-effort:
+     * 실패해도 브라우저 end-session·로컬 삭제는 진행. **clearLocal 전에 호출**(refresh/id 토큰 보존 순서).
+     */
+    suspend fun revokeRefreshToken() = withContext(Dispatchers.IO) {
+        val endpoint = serviceConfig?.endSessionEndpoint?.toString() ?: return@withContext
+        val refresh = authState.refreshToken ?: return@withContext
+        runCatching {
+            val body = FormBody.Builder()
+                .add("client_id", BuildConfig.AUTH_CLIENT_ID)
+                .add("refresh_token", refresh)
+                .build()
+            OkHttpClient().newCall(Request.Builder().url(endpoint).post(body).build())
+                .execute().use { /* 응답 무시 — best-effort */ }
+        }
+        Unit
+    }
+
+    /** 로그아웃 2단계 — end-session Intent(브라우저, id_token_hint=id_token + post_logout_redirect). 없으면 null. 복귀 후 [clearLocal]. */
     fun endSessionIntent(): Intent? {
         val config = serviceConfig ?: return null
         val idToken = authState.idToken ?: return null
