@@ -97,7 +97,10 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         val scanned = result.contents?.trim()?.uppercase()
-        val so = scanned?.let { s -> app.inbound.firstOrNull { it.so.uppercase() == s } }
+        val so = scanned?.let { s ->
+            app.inbound.firstOrNull { it.so.uppercase() == s }
+                ?: if (com.example.bbd.BuildConfig.USE_API) SalesOrder(so = s, status = "IN_FULFILLMENT", fromWh = "", lines = emptyList()) else null
+        }
         if (so != null) onResolved(so)
     }
 
@@ -185,6 +188,7 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
             onSubmit = {
                 val v = ("SO-" + code.trim().removePrefix("SO-")).uppercase()
                 val so = app.inbound.firstOrNull { it.so.uppercase() == v }
+                    ?: if (com.example.bbd.BuildConfig.USE_API) SalesOrder(so = v, status = "IN_FULFILLMENT", fromWh = "", lines = emptyList()) else null
                 if (so == null) mErr = true else { manualOpen = false; mErr = false; onResolved(so) }
             },
         )

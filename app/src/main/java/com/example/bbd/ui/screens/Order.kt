@@ -89,6 +89,7 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
     val me = LocalMe.current
     val app = LocalAppData.current
     val repo = remember { CustomerOrderRepository() }
+    val itemRepo = remember { ItemRepository() }
     val scope = rememberCoroutineScope()
 
     var customer by remember { mutableStateOf("") }
@@ -112,7 +113,11 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { res ->
         val sku = res.contents?.trim()?.uppercase()
-        if (sku != null && Seed.partBySku(sku) != null) addLine(sku)
+        if (sku != null) {
+            if (BuildConfig.USE_API) {
+                scope.launch { if ((itemRepo.resolve(sku) as? UiState.Success)?.data != null) addLine(sku) }
+            } else if (Seed.partBySku(sku) != null) addLine(sku)
+        }
     }
 
     fun submit() {

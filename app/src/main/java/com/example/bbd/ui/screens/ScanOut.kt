@@ -126,8 +126,17 @@ fun ScanOutScreen(nav: Nav, preset: Part? = null) {
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         val scanned = result.contents?.trim()?.uppercase()
         if (scanned != null) {
-            val p = Seed.partBySku(scanned)
-            if (p != null) beginRecognize(p) else toForm(null, scanned)
+            if (com.example.bbd.BuildConfig.USE_API) {
+                resolving = true
+                resolveScope.launch {
+                    val p = (resolveRepo.resolvePart(me.warehouse, scanned) as? UiState.Success)?.data
+                    resolving = false
+                    if (p != null) beginRecognize(p) else toForm(null, scanned)
+                }
+            } else {
+                val p = Seed.partBySku(scanned)
+                if (p != null) beginRecognize(p) else toForm(null, scanned)
+            }
         }
     }
 
