@@ -43,6 +43,7 @@ import com.example.bbd.BuildConfig
 import com.example.bbd.data.Part
 import com.example.bbd.data.Seed
 import com.example.bbd.data.remote.OutboundResult
+import com.example.bbd.data.remote.UiState
 import com.example.bbd.data.repo.InventoryRepository
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.CodeText
@@ -103,6 +104,11 @@ fun ScanOutScreen(nav: Nav, preset: Part? = null) {
     var code by remember { mutableStateOf("") }
     var mErr by remember { mutableStateOf(false) }
     var flashOn by remember { mutableStateOf(false) }
+    // API 모드: 부품 해석을 실 재고(stocks?sku)로 — 시드 카탈로그 대체. 미보유면 미등록.
+    val me = com.example.bbd.ui.LocalMe.current
+    val resolveScope = rememberCoroutineScope()
+    val resolveRepo = remember { InventoryRepository() }
+    var resolving by remember { mutableStateOf(false) }
 
     fun toForm(resolved: Part?, raw: String?) {
         part = resolved; unknownCode = if (resolved == null) raw else null; phase = OutPhase.Form
@@ -226,13 +232,24 @@ fun ScanOutScreen(nav: Nav, preset: Part? = null) {
                 }
                 Spacer(Modifier.size(18.dp))
                 Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(if (code.isNotBlank()) T.blue else T.line).clickable(enabled = code.isNotBlank()) {
-                        val found = Seed.partBySku(code.trim())
-                        if (found == null) mErr = true else { manualOpen = false; mErr = false; beginRecognize(found) }
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(if (code.isNotBlank()) T.blue else T.line).clickable(enabled = code.isNotBlank() && !resolving) {
+                        val c = code.trim()
+                        if (com.example.bbd.BuildConfig.USE_API) {
+                            resolving = true; mErr = false
+                            resolveScope.launch {
+                                val r = resolveRepo.resolvePart(me.warehouse, c)
+                                resolving = false
+                                val p = (r as? UiState.Success)?.data
+                                if (p == null) mErr = true else { manualOpen = false; mErr = false; beginRecognize(p) }
+                            }
+                        } else {
+                            val found = Seed.partBySku(c)
+                            if (found == null) mErr = true else { manualOpen = false; mErr = false; beginRecognize(found) }
+                        }
                     }.padding(vertical = 15.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("확인", color = if (code.isNotBlank()) Color.White else T.ink3, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(if (resolving) "조회 중…" else "확인", color = if (code.isNotBlank()) Color.White else T.ink3, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
         }
