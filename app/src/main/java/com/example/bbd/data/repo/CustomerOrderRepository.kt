@@ -28,6 +28,7 @@ class CustomerOrderRepository(
         customerContact: String?,
         note: String?,
         lines: List<CustomerOrderLineRequest>,
+        idempotencyKey: String = UUID.randomUUID().toString(),
     ): CreateOrderResult = withContext(Dispatchers.IO) {
         try {
             val req = CreateCustomerOrderRequest(
@@ -37,7 +38,7 @@ class CustomerOrderRepository(
                 note = note?.ifBlank { null },
                 lines = lines,
             )
-            val resp = api.createCustomerOrder(UUID.randomUUID().toString(), req)
+            val resp = api.createCustomerOrder(idempotencyKey, req)
             when {
                 resp.isSuccessful -> {
                     val co = resp.body()?.coNumber

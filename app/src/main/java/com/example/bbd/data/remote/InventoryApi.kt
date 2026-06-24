@@ -2,6 +2,7 @@ package com.example.bbd.data.remote
 
 import com.example.bbd.data.remote.dto.StockOutboundRequest
 import com.example.bbd.data.remote.dto.StockPageDto
+import com.example.bbd.data.remote.dto.WarehousePageDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -36,4 +37,12 @@ interface InventoryApi {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body request: StockOutboundRequest,
     ): Response<Unit>
+
+    /** 창고 목록 — 로그인 후 지점명(tenancyName)→창고코드 해석용(이름 매칭). */
+    @GET("inventory/api/v1/warehouses")
+    suspend fun warehouses(
+        @Query("type") type: String? = null,
+        @Query("active") active: Boolean? = null,
+        @Query("size") size: Int = 500,
+    ): WarehousePageDto
 }
