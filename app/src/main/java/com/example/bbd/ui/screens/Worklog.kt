@@ -352,7 +352,7 @@ private fun WorklogSearch(value: String, onValue: (String) -> Unit) {
                 textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Pretendard, fontSize = 15.5.sp, color = T.ink),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(T.blue),
                 modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
-                decorationBox = { inner -> if (value.isEmpty()) Text("발주번호 · 부품 · 담당자", color = T.ink3, fontSize = 15.5.sp); inner() },
+                decorationBox = { inner -> if (value.isEmpty()) Text("요청번호 · 부품 · 담당자", color = T.ink3, fontSize = 15.5.sp); inner() },
             )
         }
         if (value.isNotEmpty()) {

@@ -114,7 +114,7 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
                     // 좌상단 SCAN 라벨
                     Row(Modifier.align(Alignment.TopStart).padding(start = 18.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFFF5B5B)))
-                        Text("SCAN · 발주 QR", fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f), letterSpacing = 1.sp)
+                        Text("SCAN · 입고 QR", fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f), letterSpacing = 1.sp)
                     }
                     // 플래시 토글 44×44 히트(글리프 34)
                     Box(
@@ -129,13 +129,13 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
                     Viewfinder(Modifier.align(Alignment.Center))
                     // 안내 + 스캔 버튼
                     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("발주 QR 또는 박스 라벨을 맞춰 주세요", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.82f))
+                        Text("입고 QR 또는 박스 라벨을 맞춰 주세요", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.82f))
                         Spacer(Modifier.size(11.dp))
                         Box(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White)
                                 .clickable {
                                     scanLauncher.launch(ScanOptions().apply {
-                                        setPrompt("도착 발주 QR/바코드를 맞춰 주세요")
+                                        setPrompt("도착 입고 QR/바코드를 맞춰 주세요")
                                         setBeepEnabled(true)
                                         setOrientationLocked(false)
                                     })
@@ -156,7 +156,7 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
                     Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(T.blueSoft), contentAlignment = Alignment.Center) {
                         BbdIcon("truck", 19.dp, T.blue, sw = 1.9f)
                     }
-                    Text("QR을 스캔하면 해당 발주(주문)를 찾아 전량 입고 확정합니다. PATCH /sales-orders/{so}/receive", fontSize = 13.sp, color = T.ink2, lineHeight = 20.sp)
+                    Text("QR을 스캔하면 해당 재고이동요청을 찾아 전량 입고 확정합니다. PATCH /sales-orders/{so}/receive", fontSize = 13.sp, color = T.ink2, lineHeight = 20.sp)
                 }
                 Spacer(Modifier.size(12.dp))
 
@@ -168,7 +168,7 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BbdIcon("keypad", 17.dp, T.ink2)
-                        Text("발주번호 직접 입력", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink2)
+                        Text("요청번호 직접 입력", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink2)
                     }
                 }
             }
@@ -226,7 +226,7 @@ private fun ManualSoModal(
         ModalHost(open, onClose) {
             Column(Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 4.dp, bottom = 24.dp)) {
                 Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("발주번호 입력", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.weight(1f))
+                    Text("요청번호 입력", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.weight(1f))
                     Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
                         BbdIcon("x", 22.dp, T.ink2)
                     }
@@ -249,17 +249,17 @@ private fun ManualSoModal(
                 if (error) {
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         BbdIcon("alert", 15.dp, T.red, sw = 2f)
-                        Text("도착 대기 발주에서 찾을 수 없습니다. 번호를 확인하세요. (예: $sample)", fontSize = 12.5.sp, color = T.red, lineHeight = 18.sp)
+                        Text("도착 대기 이동요청에서 찾을 수 없습니다. 번호를 확인하세요. (예: $sample)", fontSize = 12.5.sp, color = T.red, lineHeight = 18.sp)
                     }
                 } else {
-                    Text("SO- 접두어 자동 · 도착 대기 발주만 입고 가능", fontSize = 12.sp, color = T.ink3, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text("SO- 접두어 자동 · 도착 대기 이동요청만 입고 가능", fontSize = 12.sp, color = T.ink3, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
                 Spacer(Modifier.size(18.dp))
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(if (code.isNotBlank()) T.blue else T.line).clickable(enabled = code.isNotBlank(), onClick = onSubmit).padding(vertical = 15.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("발주 찾기", color = if (code.isNotBlank()) Color.White else T.ink3, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("이동요청 찾기", color = if (code.isNotBlank()) Color.White else T.ink3, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
         }
@@ -299,17 +299,14 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
-            Header(title = "입고 확정", back = true, chip = "발주 단위", onBack = onBack)
+            Header(title = "입고 확정", back = true, chip = "요청 단위", onBack = onBack)
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 20.dp)) {
                 // 발주 헤더 카드
                 Column(Modifier.fillMaxWidth().bbdCard().padding(16.dp)) {
+                    // 헤더 배지는 상태 1개(파랑)만 — '전량'은 합계·안내·버튼에서 이미 표현(색 과다 방지).
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         CodeText(so.so, size = 15.sp, color = T.ink)
                         SoBadge(so.status)
-                        Spacer(Modifier.weight(1f))
-                        Box(Modifier.clip(RoundedCornerShape(999.dp)).background(T.greenSoft).padding(horizontal = 9.dp, vertical = 3.dp)) {
-                            Text("전량 수령", fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = T.greenInk)
-                        }
                     }
                     Spacer(Modifier.size(12.dp))
                     Row(
@@ -333,7 +330,7 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
 
                 // 발주 품목
                 Row(Modifier.fillMaxWidth()) {
-                    Text("발주 품목", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink, modifier = Modifier.weight(1f))
+                    Text("입고 품목", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink, modifier = Modifier.weight(1f))
                     Text("${tot.items}건", fontFamily = Mono, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
                 }
                 Spacer(Modifier.size(9.dp))
@@ -359,7 +356,7 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
 
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFAFBFE)).border(1.dp, T.line, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     BbdIcon("info", 16.dp, T.ink3Read)
-                    Text("발주 주문 단위로 입고됩니다. 라인별 부분 수령은 백엔드 미지원(전량 확정).", fontSize = 12.sp, color = T.ink2, lineHeight = 18.sp)
+                    Text("이동요청 단위로 입고됩니다. 라인별 부분 수령은 백엔드 미지원(전량 확정).", fontSize = 12.sp, color = T.ink2, lineHeight = 18.sp)
                 }
 
                 error?.let { e ->
@@ -377,7 +374,7 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BbdIcon("check", 20.dp, Color.White, sw = 2.4f)
-                        Text("발주 전량 입고 확정", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("전량 입고 확정", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
@@ -386,11 +383,11 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
         // 확인 모달
         ModalHost(confirmOpen, { if (!submitting) confirmOpen = false }) {
             Column(Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 20.dp)) {
-                Text("발주를 전량 입고 확정할까요?", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text("이 이동요청을 전량 입고 확정할까요?", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Spacer(Modifier.size(14.dp))
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0xFFF7F9FC)).border(1.dp, T.line, RoundedCornerShape(13.dp)).padding(horizontal = 15.dp, vertical = 14.dp)) {
                     Row(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                        Text("발주", fontSize = 12.5.sp, color = T.ink3, modifier = Modifier.weight(1f)); CodeText(so.so, size = 13.sp, color = T.ink)
+                        Text("요청번호", fontSize = 12.5.sp, color = T.ink3, modifier = Modifier.weight(1f)); CodeText(so.so, size = 13.sp, color = T.ink)
                     }
                     Row(Modifier.fillMaxWidth()) {
                         Text("합계", fontSize = 12.5.sp, color = T.ink3, modifier = Modifier.weight(1f))
@@ -429,7 +426,7 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
                     Text(" · ${tot.items}품목 ${tot.qty}${if (tot.unit.isNotEmpty()) " ${tot.unit}" else ""} 전량 수령", fontSize = 13.5.sp, color = T.ink2)
                 }
                 Spacer(Modifier.size(8.dp))
-                Text(if (remaining > 0) "남은 도착 대기 ${remaining}건" else "도착 대기 발주를 모두 처리했습니다.", fontSize = 12.5.sp, color = T.ink3Read)
+                Text(if (remaining > 0) "남은 도착 대기 ${remaining}건" else "도착 대기 이동요청을 모두 처리했습니다.", fontSize = 12.5.sp, color = T.ink3Read)
                 Spacer(Modifier.size(20.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ModalGhost("홈으로", Modifier.weight(1f)) { nav.tab("home") }

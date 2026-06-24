@@ -115,7 +115,7 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                         horizontalArrangement = Arrangement.spacedBy(11.dp),
                     ) {
                         BbdIcon("info", 18.dp, T.ink3Read)
-                        Text("지점 발주 요청·결과는 웹 ERP에서 확인합니다. (모바일 알림 준비 중)", fontSize = 12.5.sp, color = T.ink2, lineHeight = 19.sp)
+                        Text("지점 이동요청·결과는 웹 ERP에서 확인합니다. (모바일 알림 준비 중)", fontSize = 12.5.sp, color = T.ink2, lineHeight = 19.sp)
                     }
                     Spacer(Modifier.size(20.dp))
                 }
@@ -130,7 +130,7 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                         }
                     }
                     if (recent.isEmpty()) {
-                        Text("아직 입고 완료한 발주가 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Text("아직 입고 완료한 이동요청이 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     } else {
                         recent.forEachIndexed { i, so ->
                             SoRow(so, toShort = me.warehouseName.removeSuffix(" 창고"), onClick = { sel = so }, divider = i < recent.lastIndex)
@@ -197,7 +197,7 @@ private fun ArrivalEmptyCard() {
         Column(Modifier.weight(1f)) {
             Text("도착 대기 없음", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
             Spacer(Modifier.size(3.dp))
-            Text("이동 중인 발주가 없습니다. 부품 도착 시 아래 스캔으로 입고하세요.", fontSize = 12.5.sp, color = T.ink3Read, lineHeight = 18.sp)
+            Text("이동 중인 입고가 없습니다. 부품 도착 시 아래 스캔으로 입고하세요.", fontSize = 12.5.sp, color = T.ink3Read, lineHeight = 18.sp)
         }
     }
 }

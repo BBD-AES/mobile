@@ -39,13 +39,13 @@ object Seed {
     /** 역할별 모바일 이용 권한(마이 > 이용 권한). */
     val ROLE_PERMS: Map<String, RolePerms> = mapOf(
         "BRANCH_STAFF" to RolePerms(
-            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "내 작업 이력"),
+            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "이동요청 이력"),
             web = emptyList(),
-            cant = listOf("지점 발주 요청(점장 전용)", "재고 조정(본사 전용)"),
+            cant = listOf("지점 이동요청(점장 전용)", "재고 조정(본사 전용)"),
         ),
         "BRANCH_MANAGER" to RolePerms(
-            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "내 작업 이력"),
-            web = listOf("지점 발주 요청", "발주 결과 확인"),
+            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "이동요청 이력"),
+            web = listOf("지점 이동요청 작성", "이동요청 결과 확인"),
             cant = listOf("재고 조정(본사 전용)"),
         ),
     )

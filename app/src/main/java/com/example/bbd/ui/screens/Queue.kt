@@ -53,11 +53,11 @@ fun BoxScope.ArrivalQueueSheet(
                 BbdIcon("truck", 13.dp, T.blue, sw = 2f)
                 Text("${items.size}건", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = T.blueInk)
             }
-            Text("내 창고로 이동 중인 발주", fontSize = 12.5.sp, color = T.ink3Read)
+            Text("내 창고로 이동 중인 입고", fontSize = 12.5.sp, color = T.ink3Read)
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp)) {
             if (items.isEmpty()) {
-                EmptyState("truck", "도착 대기 발주가 없습니다", "본사·타지점에서 출고되어 이동 중인 발주가 여기에 표시됩니다.")
+                EmptyState("truck", "도착 대기 입고가 없습니다", "본사·타지점에서 출고되어 이동 중인 입고가 여기에 표시됩니다.")
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items.forEach { so ->
@@ -70,7 +70,7 @@ fun BoxScope.ArrivalQueueSheet(
             Spacer(Modifier.size(14.dp))
             InlineNote {
                 Text(
-                    "이동 중인 발주 목록입니다. 도착·배송 예정 시각은 현재 제공되지 않으며, 푸시 알림은 지점 알림함 연동 후 제공됩니다.",
+                    "내 창고로 이동 중인 입고 목록입니다. 도착·배송 예정 시각은 현재 제공되지 않으며, 푸시 알림은 지점 알림함 연동 후 제공됩니다.",
                     fontSize = 12.5.sp, color = T.ink2, lineHeight = 19.sp,
                 )
             }
