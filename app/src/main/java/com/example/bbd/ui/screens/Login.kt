@@ -154,6 +154,7 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val userRepo = remember { com.example.bbd.data.repo.UserRepository() }
     val authRepo = remember { com.example.bbd.data.repo.AuthRepository() }
+    val invRepo = remember { com.example.bbd.data.repo.InventoryRepository() }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         AuthManager.handleResult(result.data) { ok, err ->
             if (!ok) {
@@ -169,8 +170,16 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
                 when (val us = userRepo.me()) {
                     // 1순위: /users/me — 권위 role + tenancyName(지점명).
                     is com.example.bbd.data.remote.UiState.Success -> {
+                        // 권위 신원(role+지점명). 창고코드는 user 도메인에 없으니 inventory 창고목록에서 지점명으로 해석해 보강.
+                        // 해석 실패/미일치 → 빈 창고 유지(마이 화면 '지점 매핑 대기' 안내).
+                        val base = us.data.toCurrentUser()
+                        val enriched = if (base.warehouse.isBlank() && base.branch.isNotBlank())
+                            invRepo.resolveWarehouseByName(base.branch)
+                                ?.let { (code, name) -> base.copy(warehouse = code, warehouseName = name, branchCode = code) }
+                                ?: base
+                        else base
                         loading = false
-                        onLoginAs(us.data.toCurrentUser())
+                        onLoginAs(enriched)
                     }
                     // /users/me 실패(미등록/에러) → 게이트웨이 /api/auth/me 신원-only 폴백.
                     is com.example.bbd.data.remote.UiState.Error -> {

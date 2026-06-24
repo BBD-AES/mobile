@@ -2,6 +2,11 @@ package com.example.bbd.ui
 
 import android.app.Activity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.bbd.auth.AuthManager
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -98,6 +103,16 @@ fun BbdApp() {
         stack = listOf(Route("inventory"))
     }
 
+    val scope = rememberCoroutineScope()
+    // Keycloak end-session 복귀(com.bbd.mobile:/logout) — 결과 무관하게 Secure 토큰 전부 삭제 + 로그인 이동.
+    val endSessionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        AuthManager.clearLocal()
+        me = Seed.USER
+        stack = listOf(Route("login"))
+    }
+
     val nav = Nav(
         push = { s -> stack = stack + Route(s) },
         pushPreset = { s, p -> stack = stack + Route(s, p) },
@@ -109,7 +124,16 @@ fun BbdApp() {
         },
         login = { emp -> me = Seed.resolveUser(emp); stack = listOf(Route("home")) },
         loginAs = { user -> me = user; stack = listOf(Route("home")) },
-        logout = { stack = listOf(Route("login")) },
+        logout = {
+            // 4) refresh_token back-channel 무효화 → 5) 브라우저 SSO 종료(id_token_hint) → 복귀 시 토큰 삭제(런처 콜백).
+            // 세션 없음(시드/미로그인)이면 end-session Intent 가 null → 로컬 삭제+로그인 이동으로 폴백.
+            scope.launch {
+                AuthManager.revokeRefreshToken()
+                val intent = AuthManager.endSessionIntent()
+                if (intent != null) endSessionLauncher.launch(intent)
+                else { AuthManager.clearLocal(); me = Seed.USER; stack = listOf(Route("login")) }
+            }
+        },
         scan = { stack = stack + Route("scan-in") },
         scanOut = { stack = stack + Route("scan-out") },
         orderNew = { stack = stack + Route("order-new") },

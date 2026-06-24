@@ -171,13 +171,6 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
                         Text("발주번호 직접 입력", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink2)
                     }
                 }
-                Spacer(Modifier.size(12.dp))
-
-                // 출고 스캔 보류 안내
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFAFBFE)).border(1.dp, T.line, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    BbdIcon("info", 16.dp, T.ink3Read)
-                    Text("출고 스캔은 준비 중입니다 — 백엔드 엔드포인트 미연동(보류).", fontSize = 12.sp, color = T.ink2, lineHeight = 18.sp)
-                }
             }
         }
 
