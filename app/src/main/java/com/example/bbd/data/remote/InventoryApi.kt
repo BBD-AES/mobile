@@ -1,7 +1,11 @@
 package com.example.bbd.data.remote
 
+import com.example.bbd.data.remote.dto.StockOutboundRequest
 import com.example.bbd.data.remote.dto.StockPageDto
+import retrofit2.Response
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Query
 
 /**
@@ -20,4 +24,11 @@ interface InventoryApi {
         @Query("page") page: Int = 0,
         @Query("size") size: Int = 100,
     ): StockPageDto
+
+    /**
+     * 출고(지점 재고 차감). 성공 204(No Content) · 부족 시 409(INSUFFICIENT_STOCK).
+     * 멱등은 referenceNumber 로 서비스에서 처리(헤더 없음). 비-2xx 분기 위해 Response 래핑.
+     */
+    @POST("inventory/api/v1/stocks/outbound")
+    suspend fun outbound(@Body request: StockOutboundRequest): Response<Unit>
 }

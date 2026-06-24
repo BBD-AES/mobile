@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.example.bbd.data.CurrentUser
+import com.example.bbd.data.Part
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
 
@@ -26,6 +27,11 @@ class AppData(
     var lastRefresh by mutableStateOf(System.currentTimeMillis()); private set
     var refreshing by mutableStateOf(false); private set
 
+    // ── 현장 쓰기 액션(출고/현장수주) 세션 상태 — 홈 '오늘 N건' 카운터·결과 잔량용 ──
+    var outbounds by mutableStateOf<List<OutboundRec>>(emptyList()); private set
+    var orders by mutableStateOf<List<OrderRec>>(emptyList()); private set
+    private var stockOverride by mutableStateOf<Map<String, Int>>(emptyMap())
+
     /** 도착 확인(입고 확정) — inbound 에서 제거 → received 맨 앞 추가. 같은 발주 중복 방지. */
     fun confirmReceive(soNumber: String) {
         val hit = inbound.firstOrNull { it.so == soNumber } ?: return
@@ -41,7 +47,39 @@ class AppData(
         lastRefresh = System.currentTimeMillis()
         refreshing = false
     }
+
+    /** 가용재고(시드 모드는 차감 반영, API 모드는 사전 표시용 fallback — 서버가 진실원). */
+    fun availableOf(sku: String, fallback: Int): Int = stockOverride[sku] ?: fallback
+
+    /** 출고 확정 — 세션 재고 차감 + 출고 이력 prepend(홈 '오늘 출고 N건'). */
+    fun applyOutbound(part: Part, qty: Int, reason: String, coNo: String) {
+        val cur = stockOverride[part.sku] ?: part.qty
+        stockOverride = stockOverride + (part.sku to (cur - qty).coerceAtLeast(0))
+        outbounds = listOf(OutboundRec(part.sku, part.name, qty, part.unit, reason, coNo, Seed.DEMO_TODAY, nowHHMM())) + outbounds
+    }
+
+    /** 현장 수주 등록 — 수주 이력 prepend(홈 '오늘 수주 N건'). */
+    fun addOrder(coNo: String, customer: String, items: Int, qty: Int) {
+        orders = listOf(OrderRec(coNo, customer, items, qty, Seed.DEMO_TODAY, nowHHMM())) + orders
+    }
 }
+
+/** 출고 이력 1건(세션). */
+data class OutboundRec(
+    val sku: String, val name: String, val qty: Int, val unit: String,
+    val reason: String, val coNo: String, val date: String, val time: String,
+)
+
+/** 현장 수주 이력 1건(세션). */
+data class OrderRec(
+    val no: String, val customer: String, val items: Int, val qty: Int,
+    val date: String, val time: String,
+)
+
+private var coSeq: Int = (System.currentTimeMillis() % 9000L).toInt() + 1000
+
+/** 추적용 CO 포맷 번호(출고 번호/수주 번호). 데모 세션 유일 · 프로덕션=백엔드 발급. */
+fun nextCoNo(): String = "CO-2026-%04d".format((coSeq++) % 10000)
 
 private fun nowHHMM(): String {
     val c = java.util.Calendar.getInstance()

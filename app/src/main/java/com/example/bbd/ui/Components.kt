@@ -227,11 +227,9 @@ val TAB_ROUTES: Set<String> = TABS.map { it.id }.toSet()
 
 @Composable
 fun TabBar(active: String, onTab: (String) -> Unit) {
-    // 목적지 4개 + 중앙 FAB 자리(스페이서). 스캔은 탭이 아니라 동작(셸 FAB).
+    // 목적지 4개 균등 분할(중앙 FAB 제거 §IA — 쓰기 액션은 홈 '작업' 카드).
     Row(Modifier.fillMaxWidth().background(T.card).topBorder().padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 4.dp)) {
-        TABS.take(2).forEach { TabItem(it, active == it.id, Modifier.weight(1f), onTab) }
-        Spacer(Modifier.width(64.dp))
-        TABS.drop(2).forEach { TabItem(it, active == it.id, Modifier.weight(1f), onTab) }
+        TABS.forEach { TabItem(it, active == it.id, Modifier.weight(1f), onTab) }
     }
 }
 

@@ -94,7 +94,17 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
 
                 // 도착 대기 히어로 — 큐 진입(스캔 아님). generic 스캔은 FAB 하나.
                 if (waiting > 0) ArrivalHero(waiting, nav.openQueue) else ArrivalEmptyCard()
-                Spacer(Modifier.size(14.dp))
+                Spacer(Modifier.size(18.dp))
+
+                // 작업 — 입고/출고/현장수주를 홈에 직접 노출(별도 FAB 없음 §IA).
+                Text("작업", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink3Read, letterSpacing = 0.5.sp)
+                Spacer(Modifier.size(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    WorkCard("arrowDn", "입고 스캔", "도착 ${waiting}건", "도착 확인", Modifier.weight(1f), nav.scan)
+                    WorkCard("arrowUp", "출고 스캔", "오늘 ${app.outbounds.size}건", "사용 차감", Modifier.weight(1f), nav.scanOut)
+                    WorkCard("doc", "현장 수주", "오늘 ${app.orders.size}건", "작업·판매", Modifier.weight(1f), nav.orderNew)
+                }
+                Spacer(Modifier.size(20.dp))
 
                 // 재고 주의 위젯 — 필터된 재고 딥링크.
                 StockWarningWidget(Seed.INV_SUMMARY.short, Seed.INV_SUMMARY.none) { target -> nav.openInventory(target) }
@@ -134,6 +144,23 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
         }
 
         SoDetailSheet(sel, me.name, me.warehouseName, onClose = { sel = null })
+    }
+}
+
+@Composable
+private fun WorkCard(icon: String, title: String, metaTop: String, metaBottom: String, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.bbdCard().clickable(onClick = onClick).padding(vertical = 15.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.size(46.dp).clip(RoundedCornerShape(13.dp)).background(T.miniTile), contentAlignment = Alignment.Center) {
+            BbdIcon(icon, 22.dp, T.ink2, sw = 2f)
+        }
+        Spacer(Modifier.size(10.dp))
+        Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, maxLines = 1)
+        Spacer(Modifier.size(4.dp))
+        Text(metaTop, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = T.ink3Read, maxLines = 1)
+        Text(metaBottom, fontSize = 10.5.sp, color = T.ink3, maxLines = 1)
     }
 }
 
