@@ -117,17 +117,6 @@ object Seed {
         )),
     )
 
-    /**
-     * 부품 상세 '최근 입고' — StockMovement 조회 API 미제공이라 합성 금지.
-     * 내가 도착 확인한 RECEIVED 발주에서 해당 SKU가 든 '도착 입고' 행만 파생.
-     */
-    fun receivedInForSku(sku: String, source: List<SalesOrder> = RECEIVED): List<RecentReceive> =
-        source.mapNotNull { so ->
-            so.lines.firstOrNull { it.sku == sku }?.let { l ->
-                RecentReceive(so.so, l.qty, l.unit, so.date, so.time)
-            }
-        }
-
     fun partBySku(sku: String): Part? =
         PARTS.find { it.sku.equals(sku, ignoreCase = true) }
 

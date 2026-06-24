@@ -120,17 +120,17 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                     Spacer(Modifier.size(20.dp))
                 }
 
-                // 최근 입고 확인 (미리보기 · 전체는 '내 작업 이력')
+                // 최근 입고 완료 (미리보기 · 전체는 이동요청 이력)
                 Column(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 16.dp)) {
                     Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("최근 입고 확인", fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.weight(1f))
+                        Text("최근 입고 완료", fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.weight(1f))
                         Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { nav.tab("worklog") }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("더보기 ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.blue)
                             BbdIcon("chevR", 15.dp, T.blue)
                         }
                     }
                     if (recent.isEmpty()) {
-                        Text("아직 입고 확인한 발주가 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Text("아직 입고 완료한 발주가 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     } else {
                         recent.forEachIndexed { i, so ->
                             SoRow(so, toShort = me.warehouseName.removeSuffix(" 창고"), onClick = { sel = so }, divider = i < recent.lastIndex)

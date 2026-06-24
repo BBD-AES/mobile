@@ -300,8 +300,8 @@ private fun PartRow(p: Part, apiMode: Boolean, onClick: () -> Unit) {
 private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
     val me = LocalMe.current
     val app = LocalAppData.current
-    val ins = Seed.receivedInForSku(p.sku, app.received).take(5)
-    val hasLink = app.inbound.any { so -> so.lines.any { it.sku == p.sku } }
+    // 이 부품이 든 도착 예정(IN_FULFILLMENT, 이동 중) 발주 — 운영자에게 '곧 들어올 양'을 보여준다.
+    val incoming = app.inbound.mapNotNull { so -> so.lines.firstOrNull { it.sku == p.sku }?.let { so to it } }.take(3)
 
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 26.dp)) {
         // 부품 헤더
@@ -355,33 +355,30 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
         }
         Spacer(Modifier.size(18.dp))
 
-        // 최근 입고 (RECEIVED 파생)
-        if (ins.isNotEmpty()) {
-            Text("최근 입고", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2)
+        // 도착 예정 (IN_FULFILLMENT 파생) — 이 부품이 든 이동 중 발주. ETA/지연 표기 금지(중립 '이동 중'만).
+        if (incoming.isNotEmpty()) {
+            Text("도착 예정", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2)
             Spacer(Modifier.size(2.dp))
             Column(Modifier.fillMaxWidth()) {
-                ins.forEachIndexed { i, m ->
+                incoming.forEachIndexed { i, (so, line) ->
                     Row(
-                        Modifier.fillMaxWidth().then(if (i < ins.lastIndex) Modifier.bottomBorder(T.lineSoft) else Modifier).padding(vertical = 11.dp),
+                        Modifier.fillMaxWidth().then(if (i < incoming.lastIndex) Modifier.bottomBorder(T.lineSoft) else Modifier).padding(vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Box(Modifier.size(34.dp).clip(CircleShape).background(T.blueSoft), contentAlignment = Alignment.Center) {
-                            BbdIcon("arrowDn", 16.dp, T.blue, sw = 2.1f)
+                            BbdIcon("truck", 17.dp, T.blue, sw = 2f)
                         }
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("도착 입고 · ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink)
-                                CodeText(m.so, size = 12.5.sp)
+                                Text("이동 중 · ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink)
+                                CodeText(so.so, size = 12.5.sp)
                             }
                             Spacer(Modifier.size(1.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("${com.example.bbd.data.relDay(m.date)} · ", fontSize = 11.5.sp, color = T.ink3Read)
-                                CodeText(m.time, size = 11.5.sp, color = T.ink3Read)
-                            }
+                            Text("${so.fromWh}에서 출고", fontSize = 11.5.sp, color = T.ink3Read)
                         }
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text("+${m.qty}", fontFamily = Mono, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
-                            Text(m.unit, fontSize = 11.sp, color = T.ink3Read, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp))
+                            Text("${line.qty}", fontFamily = Mono, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T.blue)
+                            Text(line.unit, fontSize = 11.sp, color = T.ink3Read, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp))
                         }
                     }
                 }
@@ -390,7 +387,7 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
         }
 
         // (입고는 SO 전량 일괄 모델 — 부품 단위 입고 스캔 없음. 입고는 도착 대기 큐/입고 스캔 탭에서.
-        //  부품 상세는 정보(재고+도착예정) + '이 품목 출고'만 둔다.)
+        //  부품 상세는 정보(재고 + 도착 예정) + '이 품목 출고'만 둔다.)
     }
 }
 

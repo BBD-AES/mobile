@@ -52,15 +52,6 @@ data class SalesOrder(
     val lines: List<SoLine>,
 )
 
-/** 부품 상세 '최근 입고' 1행(RECEIVED 발주에서 해당 SKU 파생). */
-data class RecentReceive(
-    val so: String,
-    val qty: Int,
-    val unit: String,
-    val date: String,
-    val time: String,
-)
-
 /** SO 한 건의 합계(품목 수 · 총 수량 · 단일 라인이면 단위). */
 data class SoTotals(val items: Int, val qty: Int, val unit: String)
 
