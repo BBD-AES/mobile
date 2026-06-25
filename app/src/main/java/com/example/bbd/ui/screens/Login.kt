@@ -57,6 +57,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.bbd.BuildConfig
 import com.example.bbd.auth.AuthManager
+import com.example.bbd.data.remote.UiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -158,41 +159,45 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
     val userRepo = remember { com.example.bbd.data.repo.UserRepository() }
     val authRepo = remember { com.example.bbd.data.repo.AuthRepository() }
     val invRepo = remember { com.example.bbd.data.repo.InventoryRepository() }
-    // 토큰 교환/세션복원 성공 후 공용 — 실 신원 resolve 후 홈 진입.
-    // 우선순위: /users/me(권위 role+지점명) → 실패 시 /api/auth/me 폴백. 둘 다 실패면 에러(시드 날조 금지).
+    // 토큰 교환/세션복원 성공 후 공용 — 실 신원 resolve 후 홈 진입. 실패는 3상태로 구분:
+    //  401=세션 만료, 403/404=Keycloak 인증됐으나 ERP 사용자/권한 아님, 그 외=네트워크/일시오류.
+    //  우선순위: /users/me(권위 role+지점명) → 실패 시 /api/auth/me 폴백(시드 날조 금지).
     suspend fun resolveAndEnter() {
-        when (val us = userRepo.me()) {
-            is com.example.bbd.data.remote.UiState.Success -> {
-                val base = us.data.toCurrentUser()
-                val enriched = if (base.warehouse.isBlank() && base.branch.isNotBlank())
-                    invRepo.resolveWarehouseByName(base.branch)
-                        ?.let { (code, name) -> base.copy(warehouse = code, warehouseName = name, branchCode = code) }
-                        ?: base
-                else base
-                loading = false
-                onLoginAs(enriched)
-            }
-            is com.example.bbd.data.remote.UiState.Error -> {
-                when (val st = authRepo.me()) {
-                    is com.example.bbd.data.remote.UiState.Success -> {
-                        val dto = st.data
-                        if (dto.authenticated) { loading = false; onLoginAs(dto.toCurrentUser()) }
-                        else { loading = false; error = dto.message ?: "인증 정보를 확인하지 못했어요." }
-                    }
-                    is com.example.bbd.data.remote.UiState.Error -> { loading = false; error = "사용자 정보를 불러오지 못했어요. (${st.message})" }
-                    else -> {}
-                }
-            }
-            else -> {}
+        val us = userRepo.me()
+        if (us is UiState.Success) {
+            val base = us.data.toCurrentUser()
+            val enriched = if (base.warehouse.isBlank() && base.branch.isNotBlank())
+                invRepo.resolveWarehouseByName(base.branch)
+                    ?.let { (code, name) -> base.copy(warehouse = code, warehouseName = name, branchCode = code) }
+                    ?: base
+            else base
+            loading = false; onLoginAs(enriched); return
         }
+        val userCode = (us as? UiState.Error)?.code
+        // /users/me 가 401 이면 토큰 무효 → 폴백 무의미. 403/404/네트워크면 /api/auth/me 로 신원 한 번 더 확인.
+        val st = if (userCode == 401) null else authRepo.me()
+        if (st is UiState.Success && st.data.authenticated) { loading = false; onLoginAs(st.data.toCurrentUser()); return }
+        val authCode = (st as? UiState.Error)?.code
+        val is401 = userCode == 401 || authCode == 401
+        val notErpUser = userCode == 403 || userCode == 404 || authCode == 403 || authCode == 404 ||
+            (st is UiState.Success && !st.data.authenticated)
+        loading = false
+        error = when {
+            is401 -> "세션이 만료되어 다시 로그인이 필요합니다."
+            notErpUser -> "허용되지 않은 사용자입니다. ERP 접근 권한이 없습니다."
+            else -> "사용자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
+        }
+        // 세션만료·미인가는 토큰 정리(자동복원 무한루프 방지). 네트워크 오류는 토큰 유지(재시도 가능).
+        if (is401 || notErpUser) AuthManager.clearLocal()
     }
 
     // 시작 시 이미 인증돼 있으면(영속 토큰) 재로그인 없이 자동 복원 — 카메라/방향전환/앱 재시작으로
-    // 화면 상태가 리셋돼도 로그인 화면에 머물지 않고 토큰 refresh 후 실 신원으로 홈 진입.
+    // 화면 상태가 리셋돼도 토큰 refresh 후 실 신원으로 홈 진입. refresh 실패(=세션 만료)면 안내 후 정리.
     LaunchedEffect(Unit) {
         if (AuthManager.isAuthorized) {
             loading = true; error = null
-            if (AuthManager.freshToken()) resolveAndEnter() else loading = false
+            if (AuthManager.freshToken()) resolveAndEnter()
+            else { loading = false; error = "세션이 만료되어 다시 로그인이 필요합니다."; AuthManager.clearLocal() }
         }
     }
 
