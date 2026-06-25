@@ -1,7 +1,9 @@
 package com.example.bbd.data.remote
 
 import com.example.bbd.BuildConfig
+import com.example.bbd.auth.AuthManager
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -29,6 +31,14 @@ object Net {
                 bearer?.let { builder.header("Authorization", "Bearer $it") }
                 chain.proceed(builder.build())
             }
+            // 세션 중 access token 만료(401) → 동기 refresh 후 1회 재시도. 유효한 refresh token 이 있으면
+            // 사용자는 끊김 없이 이어진다. 무토큰/이미 재시도함/refresh 실패면 포기(401 그대로 전파 → 화면이 처리).
+            .authenticator { _, response ->
+                if (bearer == null) return@authenticator null
+                if (responseCount(response) >= 2) return@authenticator null // 이미 1회 재시도 → 루프 방지
+                val fresh = AuthManager.blockingFreshToken() ?: return@authenticator null
+                response.request.newBuilder().header("Authorization", "Bearer $fresh").build()
+            }
             .apply {
                 if (BuildConfig.DEBUG) {
                     addInterceptor(
@@ -49,4 +59,12 @@ object Net {
     }
 
     fun <T> create(service: Class<T>): T = retrofit.create(service)
+
+    /** 현재 응답까지의 누적 응답 수(priorResponse 체인) — Authenticator 재시도 1회 제한 가드용. */
+    private fun responseCount(response: Response): Int {
+        var count = 1
+        var prior = response.priorResponse
+        while (prior != null) { count++; prior = prior.priorResponse }
+        return count
+    }
 }

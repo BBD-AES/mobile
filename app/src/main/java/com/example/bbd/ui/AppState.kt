@@ -106,5 +106,12 @@ val LocalMe = staticCompositionLocalOf<CurrentUser> { Seed.USER }
 
 @Composable
 fun rememberAppData(): AppData = remember {
-    AppData(Seed.INBOUND, Seed.RECEIVED, if (com.example.bbd.BuildConfig.USE_API) emptyList() else Seed.NOTIFICATIONS)
+    // API 모드: 큐(inbound)/이력(received)/알림 시드 미주입 — 각 화면이 repo 로 실데이터 로드(시드 누수 방지).
+    // 시드 모드만 Seed.* 로 채운다.
+    val api = com.example.bbd.BuildConfig.USE_API
+    AppData(
+        inbound = if (api) emptyList() else Seed.INBOUND,
+        received = if (api) emptyList() else Seed.RECEIVED,
+        notifications = if (api) emptyList() else Seed.NOTIFICATIONS,
+    )
 }

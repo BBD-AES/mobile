@@ -25,6 +25,8 @@ class AuthRepository(
                 UiState.Success(api.me())
             } catch (c: CancellationException) {
                 throw c
+            } catch (e: retrofit2.HttpException) {
+                UiState.Error(e.message(), e.code())
             } catch (e: Exception) {
                 UiState.Error(e.message ?: "네트워크 오류")
             }

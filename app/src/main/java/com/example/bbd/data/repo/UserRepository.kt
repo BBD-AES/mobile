@@ -25,6 +25,9 @@ class UserRepository(
                 UiState.Success(api.me())
             } catch (c: CancellationException) {
                 throw c
+            } catch (e: retrofit2.HttpException) {
+                // 401=세션만료, 403/404=ERP 미등록/권한없음 — 로그인 화면이 코드로 메시지를 구분.
+                UiState.Error(e.message(), e.code())
             } catch (e: Exception) {
                 UiState.Error(e.message ?: "네트워크 오류")
             }

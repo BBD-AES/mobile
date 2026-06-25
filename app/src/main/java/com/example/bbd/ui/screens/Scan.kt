@@ -93,7 +93,6 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
     var manualOpen by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
     var mErr by remember { mutableStateOf(false) }
-    var flashOn by remember { mutableStateOf(false) }
     val repo = remember { SalesOrderRepository() }
     val scope = rememberCoroutineScope()
     var resolving by remember { mutableStateOf(false) }
@@ -114,8 +113,16 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
         }
     }
 
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.trim()?.uppercase()?.let { resolve(it) {} }
+        // 입고는 이동요청(SO) QR 전용 — 부품 바코드(비-SO)는 조용히 튕기지 말고 명확히 안내(출고와 대칭).
+        result.contents?.trim()?.uppercase()?.let { code ->
+            if (!code.startsWith("SO")) {
+                android.widget.Toast.makeText(ctx, "입고는 이동요청(SO) QR을 스캔하세요 — 부품 바코드는 출고·수주에서 사용합니다.", android.widget.Toast.LENGTH_LONG).show()
+            } else resolve(code) {
+                android.widget.Toast.makeText(ctx, "존재하지 않는 이동요청입니다: $code", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -133,15 +140,6 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
                         Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFFF5B5B)))
                         Text("SCAN · 입고 QR", fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f), letterSpacing = 1.sp)
                     }
-                    // 플래시 토글 44×44 히트(글리프 34)
-                    Box(
-                        Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp).size(44.dp).clickable { flashOn = !flashOn },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(Modifier.size(34.dp).clip(CircleShape).background(if (flashOn) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                            BbdIcon("flash", 17.dp, if (flashOn) Color(0xFF1A1D24) else Color.White)
-                        }
-                    }
                     // 코너 마커 + 스캔 라인
                     Viewfinder(Modifier.align(Alignment.Center))
                     // 안내 + 스캔 버튼
@@ -154,7 +152,7 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
                                     scanLauncher.launch(ScanOptions().apply {
                                         setPrompt("도착 입고 QR/바코드를 맞춰 주세요")
                                         setBeepEnabled(true)
-                                        setOrientationLocked(false)
+                                        setOrientationLocked(true)
                                     })
                                 }.padding(vertical = 13.dp),
                             contentAlignment = Alignment.Center,

@@ -207,7 +207,7 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
                 // 라인 추가 — 스캔 / 검색
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     AddBtn("scan", "스캔", Modifier.weight(1f)) {
-                        scanLauncher.launch(ScanOptions().apply { setPrompt("추가할 부품의 바코드를 맞춰 주세요"); setBeepEnabled(true); setOrientationLocked(false) })
+                        scanLauncher.launch(ScanOptions().apply { setPrompt("추가할 부품의 바코드를 맞춰 주세요"); setBeepEnabled(true); setOrientationLocked(true) })
                     }
                     AddBtn("search", "검색으로 추가", Modifier.weight(1f)) { pickOpen = true }
                 }

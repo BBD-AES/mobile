@@ -21,6 +21,9 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
+/** refresh 결과 — 만료(세션 정리 대상)와 네트워크 일시오류(토큰 보존·재시도)를 구분한다. */
+enum class TokenRefresh { FRESH, EXPIRED, NETWORK_ERROR }
+
 /**
  * Keycloak OIDC(Authorization Code + PKCE/S256) 인증 — AppAuth 래퍼.
  *
@@ -38,6 +41,15 @@ object AuthManager {
     private lateinit var service: AuthorizationService
     private var authState: AuthState = AuthState()
     private var serviceConfig: AuthorizationServiceConfiguration? = null
+
+    /**
+     * '진짜 만료'(invalid_grant·인가오류·refresh token 부재) 감지 플래그.
+     * 백그라운드 refresh(401 Authenticator)가 만료를 만나면 세우고, 포그라운드(홈 폴링/화면)가 보고 로그인으로 라우팅한다.
+     * clearLocal 에서 리셋. (네트워크/IO 일시오류로는 세우지 않음 — 토큰 보존·재시도.)
+     */
+    @Volatile
+    var sessionExpired: Boolean = false
+        private set
 
     fun init(context: Context) {
         appContext = context.applicationContext
@@ -99,13 +111,50 @@ object AuthManager {
         }
     }
 
-    /** suspend 버전 — refresh 후 성공 여부. 시작 시 세션 자동복원(영속 토큰)에서 사용. */
-    suspend fun freshToken(): Boolean = suspendCancellableCoroutine { cont ->
-        authState.performActionWithFreshTokens(service) { accessToken, _, _ ->
-            accessToken?.let { Net.bearer = it }
-            if (cont.isActive) cont.resume(accessToken != null)
+    /**
+     * suspend 버전 — 시작 시 세션 자동복원(영속 토큰)에서 사용.
+     * 실패를 만료(TYPE_OAUTH_TOKEN_ERROR=invalid_grant 등 진짜 무효 → 세션만료)와
+     * 네트워크/IO 일시오류(TYPE_GENERAL_ERROR 등 → 토큰 보존)로 구분한다(일시 끊김에 정상 토큰 파기 방지).
+     */
+    suspend fun freshToken(): TokenRefresh = suspendCancellableCoroutine { cont ->
+        authState.performActionWithFreshTokens(service) { accessToken, _, ex ->
+            val result = when {
+                // 성공: 토큰 주입 + 회전된 refresh token 디스크 반영(persist) — rotation+재시작 조합에서 옛 토큰 복원 방지.
+                accessToken != null -> { Net.bearer = accessToken; persist(); TokenRefresh.FRESH }
+                isExpiry(ex) -> TokenRefresh.EXPIRED          // 진짜 만료 — 정리 대상
+                else -> TokenRefresh.NETWORK_ERROR            // 네트워크/IO 일시오류 — 토큰 보존·재시도
+            }
+            if (cont.isActive) cont.resume(result)
         }
     }
+
+    /**
+     * 동기 refresh — 401 OkHttp Authenticator 전용(백그라운드 스레드에서 블로킹 호출).
+     * 새 access token 또는 null(refresh 실패). 진짜 만료면 [sessionExpired] 만 세우고 로컬은 보존(정리/라우팅은 포그라운드가).
+     * await 타임아웃은 readTimeout(20s) 아래로 둔다. (AppAuth 가 동시 refresh 를 coalesce — 단일 authState.)
+     */
+    fun blockingFreshToken(): String? {
+        if (!::service.isInitialized) return null
+        val latch = java.util.concurrent.CountDownLatch(1)
+        val ref = java.util.concurrent.atomic.AtomicReference<String?>()
+        authState.performActionWithFreshTokens(service) { accessToken, _, ex ->
+            if (accessToken != null) { Net.bearer = accessToken; persist(); ref.set(accessToken) }
+            else if (isExpiry(ex)) sessionExpired = true
+            latch.countDown()
+        }
+        runCatching { latch.await(15, java.util.concurrent.TimeUnit.SECONDS) }
+        return ref.get()
+    }
+
+    /**
+     * refresh 실패가 '진짜 만료'인가 — invalid_grant(토큰오류)/인가오류/ refresh token 부재.
+     * AppAuth 는 refresh token 부재/회전 무효를 TYPE_OAUTH_AUTHORIZATION_ERROR(type 1)로도 던지므로 둘 다 포함.
+     * (TYPE_GENERAL_ERROR 등 네트워크/IO 는 false → 보존·재시도.)
+     */
+    private fun isExpiry(ex: AuthorizationException?): Boolean =
+        authState.refreshToken == null ||
+            ex?.type == AuthorizationException.TYPE_OAUTH_TOKEN_ERROR ||
+            ex?.type == AuthorizationException.TYPE_OAUTH_AUTHORIZATION_ERROR
 
     /**
      * 로그아웃 1단계 — refresh_token back-channel 무효화(public client, secret 없음).
@@ -140,6 +189,7 @@ object AuthManager {
     fun clearLocal() {
         authState = AuthState()
         Net.bearer = null
+        sessionExpired = false
         prefs().edit().remove(KEY_STATE).apply()
     }
 
