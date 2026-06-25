@@ -10,11 +10,11 @@ plugins {
 // ★ live(운영) 플레이버는 BBD_LIVE_BASE_URL(기본 운영 도메인)만 본다 — IDE Run·기본 빌드(-P 없음)가
 //   ~/.gradle 의 BBD_BASE_URL(개발 Tailscale IP 등)에 오염돼 실기기에서 로그인 불가가 되는 함정을 차단.
 //   live 를 굳이 dev 게이트웨이로 빌드하려면 -PBBD_LIVE_BASE_URL=http://… 로 명시 오버라이드.
-// BBD_BASE_URL 은 defaultConfig(=USE_API false 인 demo/기본 빌드)용 — demo 는 네트워크 미사용이라 무해.
+// BBD_BASE_URL 은 defaultConfig 용. 모든 일반 빌드는 실 API 를 사용한다.
 val bbdBaseUrl = (project.findProperty("BBD_BASE_URL") as? String) ?: "https://bbd.inwoohub.com/"
 val liveBaseUrl = (project.findProperty("BBD_LIVE_BASE_URL") as? String) ?: "https://bbd.inwoohub.com/"
 // USE_API 는 boolean BuildConfig 필드 → 반드시 "true"/"false" 리터럴로 정규화(임의 문자열 codegen 깨짐 방지).
-val bbdUseApi = ((project.findProperty("BBD_USE_API") as? String)?.toBoolean() ?: false).toString()
+val bbdUseApi = ((project.findProperty("BBD_USE_API") as? String)?.toBoolean() ?: true).toString()
 
 // Keycloak OIDC 설정(운영팀 제공값 기본, gradle property 로 오버라이드 가능). client-secret 없음(public/PKCE).
 val authIssuer = (project.findProperty("BBD_AUTH_ISSUER") as? String) ?: "https://bbd-keycloak.inwoohub.com/auth/realms/bbd"
@@ -63,13 +63,14 @@ android {
         }
     }
 
-    // 데모(시드)↔라이브(실 게이트웨이) 토글 — AS 'Build Variants' 드롭다운에서 demoDebug↔liveDebug 선택만(파일 수정 불필요).
-    // demo = USE_API false(번들 시드 카탈로그). live = USE_API true + BASE_URL 운영 고정(liveBaseUrl, 기본 https://bbd.inwoohub.com/).
+    // 모든 배포/개발 플래이버는 실 게이트웨이를 사용한다.
+    // 과거 demo 플래이버가 USE_API=false 로 시드 데이터를 실행했지만, 현재 모바일은 mock 데이터 사용 금지.
     flavorDimensions += "backend"
     productFlavors {
         create("demo") {
             dimension = "backend"
-            buildConfigField("boolean", "USE_API", "false")
+            buildConfigField("boolean", "USE_API", "true")
+            buildConfigField("String", "BASE_URL", "\"$liveBaseUrl\"")
         }
         create("live") {
             dimension = "backend"

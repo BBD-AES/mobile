@@ -4,10 +4,10 @@
 
 ## 스택
 - Jetpack Compose (Material3), 단일 `MainActivity`, 패키지 `com.example.bbd`
-- Kotlin 2.2.10 · **AGP 9.2.1 (Kotlin 내장)** · Gradle 9.4.1 · Compose BOM 2026.02.01
+- Kotlin 2.2.10 · **AGP 9.1.0 (Kotlin 내장)** · Gradle 9.4.1 · Compose BOM 2026.02.01
 - minSdk 24 / compileSdk 36 / Java 17
 - 폰트: Pretendard(UI) + JetBrains Mono(코드·숫자) — `app/src/main/res/font` 번들
-- 데이터: 기본은 앱 내장 시드(`data/Seed.kt`). **`USE_API=true` 면 실 ERP API(`data/remote`·`data/repo`)로 대체** — 연동 진행 중(게이트웨이 OIDC Bearer). 플래그 off(기본)는 여전히 시드.
+- 데이터: 모든 일반 빌드는 `USE_API=true` 로 실 ERP API(`data/remote`·`data/repo`) 사용. 앱 내장 시드(`data/Seed.kt`)는 과거 데모 경로 보존용이며 현재 mock 데이터 사용 금지.
 
 ## 빌드 / 실행
 ```bash
