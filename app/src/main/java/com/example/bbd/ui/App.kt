@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -98,6 +99,17 @@ fun BbdApp() {
     if (backToast.isNotBlank()) {
         LaunchedEffect(backToast, lastBackAt) {
             kotlinx.coroutines.delay(2000); backToast = ""
+        }
+    }
+
+    // 세션 강제 종료(AUTH003=다른 기기 로그인 등) — 어느 화면이든 즉시 로그인으로 복귀. 사유는 로그인 화면이 안내한다.
+    val sessionEnded by AuthManager.sessionEnded.collectAsState()
+    LaunchedEffect(sessionEnded) {
+        if (sessionEnded != null && stack.last().screen != "login") {
+            AuthManager.clearLocal()
+            me = Seed.USER
+            queueOpen = false
+            stack = listOf(Route("login"))
         }
     }
 

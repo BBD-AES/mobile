@@ -14,6 +14,8 @@ import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.EndSessionRequest
 import net.openid.appauth.ResponseTypeValues
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
@@ -50,6 +52,13 @@ object AuthManager {
     @Volatile
     var sessionExpired: Boolean = false
         private set
+
+    /**
+     * 세션 강제 종료 사유 — 게이트웨이 AUTH003(다른 기기에서 로그인) 등. null=정상.
+     * 어느 화면에서든 즉시 로그인 복귀시키기 위해 전역(App)이 collect 하고, 로그인 화면이 사유를 안내한다.
+     */
+    private val _sessionEnded = MutableStateFlow<String?>(null)
+    val sessionEnded: StateFlow<String?> get() = _sessionEnded
 
     fun init(context: Context) {
         appContext = context.applicationContext
@@ -191,6 +200,20 @@ object AuthManager {
         Net.bearer = null
         sessionExpired = false
         prefs().edit().remove(KEY_STATE).apply()
+    }
+
+    /**
+     * 게이트웨이 AUTH003(다른 기기에서 로그인) — 액세스 토큰은 유효하나 게이트웨이가 sid 로 차단한다.
+     * refresh 는 무의미(같은 sid 라 계속 막힘)하므로, 차단된 토큰을 버리고 전역 세션 종료 신호를 세운다.
+     */
+    fun markSessionReplaced() {
+        Net.bearer = null
+        _sessionEnded.value = "다른 기기에서 로그인되어 자동 로그아웃되었습니다."
+    }
+
+    /** 세션 종료 사유 소거 — 재로그인 시도/성공 시 호출. */
+    fun clearSessionEnded() {
+        _sessionEnded.value = null
     }
 
     fun dispose() {

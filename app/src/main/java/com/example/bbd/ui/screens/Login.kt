@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -207,6 +208,10 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
         }
     }
 
+    // 다른 기기 로그인(AUTH003) 등으로 강제 로그아웃돼 이 화면에 도달한 경우 사유를 안내한다.
+    val sessionNotice by AuthManager.sessionEnded.collectAsState()
+    LaunchedEffect(sessionNotice) { sessionNotice?.let { error = it } }
+
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         AuthManager.handleResult(result.data) { ok, err ->
             if (!ok) { loading = false; error = err ?: "로그인에 실패했어요."; return@handleResult }
@@ -241,7 +246,7 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(T.blue)
                 .clickable(enabled = !loading) {
-                    loading = true; error = null
+                    loading = true; error = null; AuthManager.clearSessionEnded()
                     AuthManager.beginLogin { intent ->
                         if (intent != null) launcher.launch(intent)
                         else { loading = false; error = "인증 서버에 연결하지 못했어요." }
