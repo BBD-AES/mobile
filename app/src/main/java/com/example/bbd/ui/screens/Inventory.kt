@@ -480,7 +480,7 @@ private fun InventoryTenancyPending(nav: Nav, contentPad: PaddingValues) {
     }
 }
 
-private fun summaryOf(parts: List<Part>): InvSummary = InvSummary(
+internal fun summaryOf(parts: List<Part>): InvSummary = InvSummary(
     total = parts.size,
     short = parts.count { it.status == StockStatus.SHORT },
     none = parts.count { it.status == StockStatus.NONE },

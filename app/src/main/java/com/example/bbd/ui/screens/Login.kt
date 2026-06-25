@@ -57,6 +57,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.bbd.BuildConfig
 import com.example.bbd.auth.AuthManager
+import com.example.bbd.auth.TokenRefresh
 import com.example.bbd.data.remote.UiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -196,8 +197,13 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
     LaunchedEffect(Unit) {
         if (AuthManager.isAuthorized) {
             loading = true; error = null
-            if (AuthManager.freshToken()) resolveAndEnter()
-            else { loading = false; error = "세션이 만료되어 다시 로그인이 필요합니다."; AuthManager.clearLocal() }
+            when (AuthManager.freshToken()) {
+                TokenRefresh.FRESH -> resolveAndEnter()
+                // 진짜 만료(invalid_grant 등) → 안내 후 토큰 정리(자동복원 무한루프 방지).
+                TokenRefresh.EXPIRED -> { loading = false; error = "세션이 만료되어 다시 로그인이 필요합니다."; AuthManager.clearLocal() }
+                // 네트워크 일시오류 → 토큰 보존(재시도 가능). 아래 버튼으로 다시 진입.
+                TokenRefresh.NETWORK_ERROR -> { loading = false; error = "인터넷 연결을 확인한 뒤 다시 로그인해 주세요." }
+            }
         }
     }
 

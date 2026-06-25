@@ -67,6 +67,8 @@ class Nav(
     /** API 모드: 게이트웨이 /me 로 만든 실 사용자를 직접 설정 + 홈 진입(시드 resolve 우회). */
     val loginAs: (CurrentUser) -> Unit,
     val logout: () -> Unit,
+    /** 세션 만료 감지(백그라운드 refresh 실패) — 브라우저 end-session 없이 로컬 정리 + 로그인 복귀. */
+    val sessionExpired: () -> Unit,
     val scan: () -> Unit,
     val scanOut: () -> Unit,
     val orderNew: () -> Unit,
@@ -158,6 +160,8 @@ fun BbdApp() {
                 else { AuthManager.clearLocal(); me = Seed.USER; stack = listOf(Route("login")) }
             }
         },
+        // 세션 만료 — 토큰 이미 무효라 브라우저 end-session 불필요. 로컬 정리 + 로그인 화면(자동복원이 만료 안내).
+        sessionExpired = { AuthManager.clearLocal(); me = Seed.USER; stack = listOf(Route("login")) },
         scan = { stack = stack + Route("scan-in") },
         scanOut = { stack = stack + Route("scan-out") },
         orderNew = { stack = stack + Route("order-new") },

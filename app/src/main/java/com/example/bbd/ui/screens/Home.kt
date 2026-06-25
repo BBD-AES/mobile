@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -34,9 +35,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.bbd.auth.AuthManager
+import com.example.bbd.data.Part
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
 import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.repo.InventoryRepository
 import com.example.bbd.data.repo.NotificationRepository
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.BellBtn
@@ -81,16 +85,19 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
             notifLoading = false
         }
     }
-    // 실시간 근사 — 무음 폴링(20s). 로딩/클리어 토글 없이 목록만 교체해 벨 카운트가 깜빡임 없이 자동 갱신된다.
+    // 실시간 근사 — 무음 폴링(2s). 로딩/클리어 토글 없이 목록만 교체해 벨 카운트가 깜빡임 없이 자동 갱신된다.
     // (submitted→점장 알람 증가 / stock-replenished 입고를 포그라운드 유지 중에도 반영. 프로덕션 푸시(FCM/SSE)는 후속.)
+    // NOTE: 2s 는 데모용 near-real-time. 운영 배포 시 배터리/네트워크 고려해 15~30s 로 상향 또는 FCM/SSE 전환 권장.
     if (com.example.bbd.BuildConfig.USE_API) {
         LaunchedEffect(Unit) {
             while (isActive) {
-                delay(20_000)
+                delay(2_000)
                 when (val r = notifRepo.inbox()) {
                     is UiState.Success -> app.loadNotifications(r.data)
                     else -> {}
                 }
+                // 진짜 만료(401→refresh 실패)면 무한 2초 하머링을 멈추고 로그인으로 복귀.
+                if (AuthManager.sessionExpired) { nav.sessionExpired(); break }
             }
         }
     }
@@ -154,7 +161,12 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                 Spacer(Modifier.size(20.dp))
 
                 // 재고 주의 위젯 — 필터된 재고 딥링크.
-                StockWarningWidget(Seed.INV_SUMMARY.short, Seed.INV_SUMMARY.none) { target -> nav.openInventory(target) }
+                // API 모드는 내 지점 실재고에서 산출(시드 카운트 날조 금지). 시드 모드만 Seed.INV_SUMMARY.
+                if (com.example.bbd.BuildConfig.USE_API) {
+                    StockWarningApi(me.warehouse) { target -> nav.openInventory(target) }
+                } else {
+                    StockWarningWidget(Seed.INV_SUMMARY.short, Seed.INV_SUMMARY.none) { target -> nav.openInventory(target) }
+                }
                 Spacer(Modifier.size(20.dp))
 
                 // 점장 발주 안내 인라인 노트.
@@ -262,6 +274,22 @@ private fun ArrivalEmptyCard() {
             Spacer(Modifier.size(3.dp))
             Text("이동 중인 입고가 없습니다. 부품 도착 시 아래 스캔으로 입고하세요.", fontSize = 12.5.sp, color = T.ink3Read, lineHeight = 18.sp)
         }
+    }
+}
+
+@Composable
+private fun StockWarningApi(warehouse: String, onOpen: (String) -> Unit) {
+    // 지점 미매핑(warehouse 공백)이면 위젯 생략 — 재고 탭이 '매핑 대기'를 안내한다(시드 카운트 날조 금지).
+    if (warehouse.isBlank()) return
+    val repo = remember { InventoryRepository() }
+    val state by produceState<UiState<List<Part>>?>(null, warehouse) {
+        value = repo.branchStocks(warehouse)
+    }
+    // 로딩/에러 중엔 위젯을 그리지 않는다(0건을 '재고 양호'로 오표시하거나 가짜 카운트를 보이지 않게).
+    // 성공 시에만 실재고 요약(부족/없음)으로 표시 — 재고 탭과 동일한 summaryOf 사용.
+    (state as? UiState.Success)?.let { s ->
+        val sum = summaryOf(s.data)
+        StockWarningWidget(sum.short, sum.none, onOpen)
     }
 }
 
