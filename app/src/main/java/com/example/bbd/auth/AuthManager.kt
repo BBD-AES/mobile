@@ -14,7 +14,9 @@ import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.EndSessionRequest
 import net.openid.appauth.ResponseTypeValues
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -94,6 +96,14 @@ object AuthManager {
         authState.performActionWithFreshTokens(service) { accessToken, _, _ ->
             accessToken?.let { Net.bearer = it }
             onToken(accessToken)
+        }
+    }
+
+    /** suspend 버전 — refresh 후 성공 여부. 시작 시 세션 자동복원(영속 토큰)에서 사용. */
+    suspend fun freshToken(): Boolean = suspendCancellableCoroutine { cont ->
+        authState.performActionWithFreshTokens(service) { accessToken, _, _ ->
+            accessToken?.let { Net.bearer = it }
+            if (cont.isActive) cont.resume(accessToken != null)
         }
     }
 

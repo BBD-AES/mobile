@@ -43,6 +43,13 @@ import com.example.bbd.data.Seed
 import com.example.bbd.data.StockStatus
 import com.example.bbd.data.remote.UiState
 import com.example.bbd.data.repo.InventoryRepository
+import com.example.bbd.data.repo.ItemRepository
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.launch
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.CodeText
 import com.example.bbd.ui.Header
@@ -87,6 +94,31 @@ private fun InventoryBody(
     var statusFilter by remember { mutableStateOf(if (initialFilter in listOf("부족", "없음", "정상")) initialFilter!! else "all") }
     var catFilter by remember { mutableStateOf("all") }
     var sel by remember { mutableStateOf<Part?>(null) }
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    val scanRepo = remember { InventoryRepository() }
+    val scanItemRepo = remember { ItemRepository() }
+    val meWh = LocalMe.current.warehouse
+    // 부품 바코드 스캔 → 해석되면 상세 열기, 미해석이면 '미등록' 토스트. API=실 재고(resolvePart), 시드=카탈로그.
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val code = result.contents?.trim()?.uppercase() ?: return@rememberLauncherForActivityResult
+        if (apiMode) {
+            scope.launch {
+                val p = (scanRepo.resolvePart(meWh, code) as? UiState.Success)?.data
+                if (p != null) sel = p
+                else {
+                    // 내 창고 재고엔 없음 — 품목 마스터를 확인해 '미등록'(카탈로그에 없음)과 '이 창고에 재고 없음'(타 창고엔 있을 수 있음)을 구분.
+                    val inMaster = (scanItemRepo.resolve(code) as? UiState.Success)?.data != null
+                    val msg = if (inMaster) "이 창고에 재고가 없는 부품입니다 ($code)" else "미등록 부품입니다 ($code)"
+                    android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        } else {
+            val p = Seed.partBySku(code)
+            if (p != null) sel = p
+            else android.widget.Toast.makeText(ctx, "미등록 부품: $code", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val list = parts.filter { p ->
         (q.isBlank() || p.name.contains(q) || p.sku.contains(q, ignoreCase = true)) &&
@@ -124,7 +156,9 @@ private fun InventoryBody(
                 Spacer(Modifier.size(12.dp))
 
                 // 검색 — 조회 맥락: 스캔은 부품을 찾아 상세를 엽니다(입고 쓰기 흐름 점프 금지).
-                InventorySearch(q, { q = it }) { sel = Seed.partBySku("BBD-OIL-1006") }
+                InventorySearch(q, { q = it }) {
+                    scanLauncher.launch(ScanOptions().apply { setPrompt("부품 바코드를 맞춰 주세요"); setBeepEnabled(true); setOrientationLocked(false) })
+                }
                 Spacer(Modifier.size(12.dp))
 
                 // 필터 — 상태(정상/부족/없음)와 카테고리를 분리한 2단 칩. 각 줄 단일선택, 둘은 AND.

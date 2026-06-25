@@ -94,14 +94,28 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
     var code by remember { mutableStateOf("") }
     var mErr by remember { mutableStateOf(false) }
     var flashOn by remember { mutableStateOf(false) }
+    val repo = remember { SalesOrderRepository() }
+    val scope = rememberCoroutineScope()
+    var resolving by remember { mutableStateOf(false) }
+
+    // SO 해석 — 시드(app.inbound, 라인 보유)면 즉시. 라이브면 상세를 fetch 해 라인을 채워 넘긴다(요약엔 라인 없음).
+    fun resolve(soNum: String, onFail: () -> Unit) {
+        val seed = app.inbound.firstOrNull { it.so.uppercase() == soNum }
+        if (seed != null) { onResolved(seed); return }
+        if (!com.example.bbd.BuildConfig.USE_API) { onFail(); return }
+        scope.launch {
+            resolving = true
+            val r = repo.detail(soNum)
+            resolving = false
+            when (r) {
+                is UiState.Success -> onResolved(r.data)
+                else -> onFail()
+            }
+        }
+    }
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        val scanned = result.contents?.trim()?.uppercase()
-        val so = scanned?.let { s ->
-            app.inbound.firstOrNull { it.so.uppercase() == s }
-                ?: if (com.example.bbd.BuildConfig.USE_API) SalesOrder(so = s, status = "IN_FULFILLMENT", fromWh = "", lines = emptyList()) else null
-        }
-        if (so != null) onResolved(so)
+        result.contents?.trim()?.uppercase()?.let { resolve(it) {} }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -187,9 +201,7 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
             onClose = { manualOpen = false; mErr = false },
             onSubmit = {
                 val v = ("SO-" + code.trim().removePrefix("SO-")).uppercase()
-                val so = app.inbound.firstOrNull { it.so.uppercase() == v }
-                    ?: if (com.example.bbd.BuildConfig.USE_API) SalesOrder(so = v, status = "IN_FULFILLMENT", fromWh = "", lines = emptyList()) else null
-                if (so == null) mErr = true else { manualOpen = false; mErr = false; onResolved(so) }
+                resolve(v) { mErr = true }
             },
         )
     }

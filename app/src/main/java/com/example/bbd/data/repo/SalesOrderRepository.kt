@@ -3,6 +3,9 @@ package com.example.bbd.data.repo
 import com.example.bbd.data.remote.Net
 import com.example.bbd.data.remote.SalesApi
 import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.SalesOrder
+import com.example.bbd.data.SoLine
+import com.example.bbd.data.remote.dto.SalesOrderDetailDto
 import com.example.bbd.data.remote.dto.SalesOrderSummaryDto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +50,30 @@ class SalesOrderRepository(
                 UiState.Error(e.message ?: "네트워크 오류")
             }
         }
+
+    /** SO 상세 → 모바일 SalesOrder(라인 포함) 매핑. 입고 확정 폼 품목 표시(요약 DTO엔 라인 없음). */
+    suspend fun detail(soNumber: String): UiState<SalesOrder> = call {
+        val d = api.salesOrder(soNumber)
+        SalesOrder(
+            so = d.soNumber ?: soNumber,
+            status = d.status ?: "IN_FULFILLMENT",
+            // SO 상세 DTO엔 출처 창고가 없음 — 보충 SO 의 표준 출처(본사 중앙창고)로 표시. 목적지는 폼에서 me.warehouseName.
+            fromWh = "본사 중앙창고",
+            toCode = d.toWarehouseCode ?: "",
+            date = (d.receivedAt ?: "").take(10),
+            lines = d.lines.map { l ->
+                SoLine(
+                    sku = l.sku ?: "",
+                    name = l.nameSnapshot?.takeIf { it.isNotBlank() } ?: (l.sku ?: ""),
+                    qty = l.quantity,
+                    unit = "EA",   // SO 라인 DTO엔 단위 없음 — 기본 EA.
+                    thumb = "box",
+                )
+            },
+            requestedBy = d.requestedBy ?: "",
+            receivedBy = d.receivedBy ?: "",
+        )
+    }
 
     /** 페이지를 끝까지 모아 전체 반환(size 100, 최대 20페이지=2000건 안전캡 — 무한루프 방지). */
     private suspend fun searchAll(

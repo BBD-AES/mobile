@@ -4,6 +4,7 @@ import com.example.bbd.data.remote.dto.CreateCustomerOrderRequest
 import com.example.bbd.data.remote.dto.CustomerOrderDetailDto
 import com.example.bbd.data.remote.dto.CustomerOrderPageDto
 import com.example.bbd.data.remote.dto.CustomerOrderStatusChangeDto
+import com.example.bbd.data.remote.dto.SalesOrderDetailDto
 import com.example.bbd.data.remote.dto.SalesOrderPageDto
 import retrofit2.Response
 import retrofit2.http.Body
@@ -36,6 +37,10 @@ interface SalesApi {
     /** 도착 확인(입고 확정): IN_FULFILLMENT → RECEIVED. */
     @PATCH("sales/api/v1/sales-orders/{soNumber}/receive")
     suspend fun receive(@Path("soNumber") soNumber: String): Response<Unit>
+
+    /** SO 상세(라인 포함) — 입고 확정 폼 품목 표시(요약엔 라인 없음). */
+    @GET("sales/api/v1/sales-orders/{soNumber}")
+    suspend fun salesOrder(@Path("soNumber") soNumber: String): SalesOrderDetailDto
 
     /**
      * 현장 수주 등록(CustomerOrder 생성, OPEN). @Idempotent → Idempotency-Key 헤더 필수(서비스가 멱등 처리).
