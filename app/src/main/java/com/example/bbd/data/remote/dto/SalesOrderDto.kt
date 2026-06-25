@@ -36,3 +36,36 @@ data class PaginationDto(
     val totalElements: Long = 0,
     val totalPages: Int = 0,
 )
+
+/**
+ * SO 상세(GET /sales-orders/{soNumber}) — SalesOrderDetailResponse 미러. 라인 포함.
+ * 입고 확정 폼이 품목(라인)을 보여주려면 요약(라인 없음)이 아닌 상세가 필요.
+ */
+data class SalesOrderDetailDto(
+    val soNumber: String? = null,
+    val toWarehouseCode: String? = null,
+    val toWarehouseName: String? = null,
+    val status: String? = null,
+    val priority: String? = null,
+    val requestedBy: String? = null,
+    val approvedBy: String? = null,
+    val receivedBy: String? = null,
+    val canceledBy: String? = null,
+    val requestedAt: String? = null,
+    val approvedAt: String? = null,
+    val receivedAt: String? = null,
+    val canceledAt: String? = null,
+    val totalAmount: Double? = null,
+    val note: String? = null,
+    val customerOrderNumber: String? = null,
+    val lines: List<SalesOrderLineDto> = emptyList(),
+)
+
+data class SalesOrderLineDto(
+    val lineNo: Int = 0,
+    val sku: String? = null,
+    val nameSnapshot: String? = null,
+    val unitPriceSnapshot: Double? = null,
+    val quantity: Int = 0,
+    val reservedQuantity: Int = 0,
+)
