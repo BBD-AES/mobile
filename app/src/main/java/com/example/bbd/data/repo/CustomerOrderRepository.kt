@@ -6,10 +6,12 @@ import com.example.bbd.data.remote.CreateOrderResult
 import com.example.bbd.data.remote.Net
 import com.example.bbd.data.remote.SalesApi
 import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.remote.UpdateOrderResult
 import com.example.bbd.data.remote.dto.CreateCustomerOrderRequest
 import com.example.bbd.data.remote.dto.CustomerOrderDetailDto
 import com.example.bbd.data.remote.dto.CustomerOrderLineRequest
 import com.example.bbd.data.remote.dto.CustomerOrderSummaryDto
+import com.example.bbd.data.remote.dto.UpdateCustomerOrderRequest
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +78,32 @@ class CustomerOrderRepository(
     /** 수주 상세(라인 포함). close 확인 모달에서 차감 품목·수량 표시용. */
     suspend fun detail(coNumber: String): UiState<CustomerOrderDetailDto> =
         call { api.customerOrder(coNumber) }
+
+    /** 수주 수정(OPEN only). lines 는 전체 교체라 호출측에서 현재 라인 전체를 보낸다. */
+    suspend fun update(
+        coNumber: String,
+        note: String?,
+        lines: List<CustomerOrderLineRequest>,
+    ): UpdateOrderResult = withContext(Dispatchers.IO) {
+        try {
+            val resp = api.updateCustomerOrder(
+                coNumber,
+                UpdateCustomerOrderRequest(note = note?.ifBlank { null }, lines = lines),
+            )
+            when {
+                resp.isSuccessful -> UpdateOrderResult.Ok(resp.body()?.coNumber ?: coNumber)
+                resp.code() == 401 -> UpdateOrderResult.Unauthorized
+                resp.code() == 409 -> UpdateOrderResult.Conflict(problemMessage(resp) ?: "접수 상태에서만 수정할 수 있습니다")
+                else -> UpdateOrderResult.Error("수주 수정 실패 (${resp.code()})")
+            }
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: IOException) {
+            UpdateOrderResult.Offline
+        } catch (e: Exception) {
+            UpdateOrderResult.Error(e.message ?: "네트워크 오류")
+        }
+    }
 
     /** 확정(OPEN→CONFIRMED). 비-OPEN 이면 409(CO004). */
     suspend fun confirm(coNumber: String): ConfirmOrderResult = withContext(Dispatchers.IO) {

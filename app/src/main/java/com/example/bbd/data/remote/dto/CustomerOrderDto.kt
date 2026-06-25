@@ -17,6 +17,12 @@ data class CustomerOrderLineRequest(
     val quantity: Int,
 )
 
+/** 현장 수주 수정 요청 — OPEN 상태에서 note/lines 전체 교체. */
+data class UpdateCustomerOrderRequest(
+    val note: String? = null,
+    val lines: List<CustomerOrderLineRequest>? = null,
+)
+
 /**
  * 수주 목록 페이지 — SalesOrderPageResponse<CustomerOrderSummaryResponse>.
  * 페이지 래퍼 형상은 SO 와 동일(items/pagination) → [PaginationDto] 재사용.

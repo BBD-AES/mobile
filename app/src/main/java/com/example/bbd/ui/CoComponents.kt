@@ -10,12 +10,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -26,20 +32,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bbd.data.remote.CloseOrderResult
 import com.example.bbd.data.remote.ConfirmOrderResult
 import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.remote.UpdateOrderResult
+import com.example.bbd.data.remote.dto.CustomerOrderLineRequest
 import com.example.bbd.data.remote.dto.CustomerOrderDetailDto
+import com.example.bbd.data.remote.dto.ItemDto
 import com.example.bbd.data.remote.dto.CustomerOrderLineDto
 import com.example.bbd.data.remote.dto.CustomerOrderSummaryDto
 import com.example.bbd.data.repo.CustomerOrderRepository
+import com.example.bbd.data.repo.ItemRepository
 import com.example.bbd.ui.state.RowSkeleton
 import com.example.bbd.ui.theme.Mono
+import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -129,6 +144,9 @@ fun BoxScope.CoDetailSheet(
     var reload by remember(coNumber) { mutableStateOf(0) }
     var busy by remember(coNumber) { mutableStateOf(false) }
     var confirming by remember(coNumber) { mutableStateOf(false) } // 종료 인라인 재확인
+    var editing by remember(coNumber) { mutableStateOf(false) }
+    var editNote by remember(coNumber) { mutableStateOf("") }
+    var editLines by remember(coNumber) { mutableStateOf<List<CoEditLine>>(emptyList()) }
     // 한 종료 시도 = 1키(재시도 동일키). confirming 진입 시 mint, 실패로 빠지면 다음 시도에 새 키.
     val closeKey = remember(coNumber, confirming) { UUID.randomUUID().toString() }
 
@@ -137,8 +155,13 @@ fun BoxScope.CoDetailSheet(
         value = if (coNumber == null) UiState.Loading else repo.detail(coNumber)
     }
 
-    SheetHost(open = coNumber != null, onClose = onClose, title = "수주 상세") {
-        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 26.dp)) {
+    SheetHost(open = coNumber != null, onClose = onClose, title = "수주 상세", avoidIme = true, maxHeightFraction = 0.86f) {
+        Column(
+            Modifier.fillMaxWidth()
+                .heightIn(max = 620.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 26.dp),
+        ) {
             when (val s = state) {
                 is UiState.Loading -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { repeat(3) { RowSkeleton() } }
                 is UiState.Error -> Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -148,6 +171,56 @@ fun BoxScope.CoDetailSheet(
                 is UiState.Success -> {
                     val co = s.data
                     val totalQty = co.lines.sumOf { it.quantity }
+                    if (editing) {
+                        CoEditPanel(
+                            note = editNote,
+                            lines = editLines,
+                            busy = busy,
+                            onNote = { editNote = it },
+                            onQty = { sku, delta ->
+                                editLines = editLines.map { if (it.sku == sku) it.copy(qty = (it.qty + delta).coerceAtLeast(1)) else it }
+                            },
+                            onAdd = { item ->
+                                val sku = item.sku.orEmpty()
+                                if (sku.isNotBlank()) {
+                                    editLines = if (editLines.any { it.sku == sku }) {
+                                        editLines.map { if (it.sku == sku) it.copy(qty = it.qty + 1) else it }
+                                    } else {
+                                        editLines + CoEditLine(sku = sku, name = item.name ?: sku, qty = 1)
+                                    }
+                                }
+                            },
+                            onRemove = { sku -> editLines = editLines.filterNot { it.sku == sku } },
+                            onCancel = { editing = false },
+                            onSave = {
+                                if (editLines.isEmpty()) {
+                                    onResult("라인을 1개 이상 남겨 주세요.", ToastKind.ERR)
+                                    return@CoEditPanel
+                                }
+                                scope.launch {
+                                    busy = true
+                                    when (val r = repo.update(
+                                        co.coNumber.orEmpty(),
+                                        editNote.trim(),
+                                        editLines.map { CustomerOrderLineRequest(it.sku, it.qty) },
+                                    )) {
+                                        is UpdateOrderResult.Ok -> {
+                                            onResult("수주 수정 완료", ToastKind.OK)
+                                            editing = false
+                                            onMutated()
+                                            reload++
+                                        }
+                                        is UpdateOrderResult.Conflict -> onResult(r.message, ToastKind.ERR)
+                                        UpdateOrderResult.Unauthorized -> onResult("세션이 만료되었습니다. 다시 로그인해 주세요.", ToastKind.ERR)
+                                        UpdateOrderResult.Offline -> onResult("네트워크에 연결되어 있지 않습니다.", ToastKind.ERR)
+                                        is UpdateOrderResult.Error -> onResult(r.message, ToastKind.ERR)
+                                    }
+                                    busy = false
+                                }
+                            },
+                        )
+                        return@Column
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         CodeText(co.coNumber ?: "-", size = 15.sp, color = T.ink)
                         CoBadge(co.status)
@@ -185,17 +258,34 @@ fun BoxScope.CoDetailSheet(
                     Spacer(Modifier.size(18.dp))
 
                     when (co.status) {
-                        "OPEN" -> CoActionButton("수주 확정", "check", busy, T.blue, Color.White) {
-                            scope.launch {
-                                busy = true
-                                when (val r = repo.confirm(co.coNumber.orEmpty())) {
-                                    is ConfirmOrderResult.Ok -> { onResult("수주 확정됨 — 종료(차감) 가능", ToastKind.OK); onMutated(); reload++ }
-                                    is ConfirmOrderResult.Conflict -> onResult(r.message, ToastKind.ERR)
-                                    ConfirmOrderResult.Unauthorized -> onResult("세션이 만료되었습니다. 다시 로그인해 주세요.", ToastKind.ERR)
-                                    ConfirmOrderResult.Offline -> onResult("네트워크에 연결되어 있지 않습니다.", ToastKind.ERR)
-                                    is ConfirmOrderResult.Error -> onResult(r.message, ToastKind.ERR)
+                        "OPEN" -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.weight(1f)) {
+                                CoActionButton("수정", "edit", busy, T.card, T.ink2, border = true) {
+                                    editNote = co.note.orEmpty()
+                                    editLines = co.lines.map {
+                                        CoEditLine(
+                                            sku = it.sku.orEmpty(),
+                                            name = it.nameSnapshot?.takeIf { name -> name.isNotBlank() } ?: it.sku.orEmpty(),
+                                            qty = it.quantity.coerceAtLeast(1),
+                                        )
+                                    }.filter { it.sku.isNotBlank() }
+                                    editing = true
                                 }
-                                busy = false
+                            }
+                            Box(Modifier.weight(1f)) {
+                                CoActionButton("확정", "check", busy, T.blue, Color.White) {
+                                    scope.launch {
+                                        busy = true
+                                        when (val r = repo.confirm(co.coNumber.orEmpty())) {
+                                            is ConfirmOrderResult.Ok -> { onResult("수주 확정됨 — 종료(차감) 가능", ToastKind.OK); onMutated(); reload++ }
+                                            is ConfirmOrderResult.Conflict -> onResult(r.message, ToastKind.ERR)
+                                            ConfirmOrderResult.Unauthorized -> onResult("세션이 만료되었습니다. 다시 로그인해 주세요.", ToastKind.ERR)
+                                            ConfirmOrderResult.Offline -> onResult("네트워크에 연결되어 있지 않습니다.", ToastKind.ERR)
+                                            is ConfirmOrderResult.Error -> onResult(r.message, ToastKind.ERR)
+                                        }
+                                        busy = false
+                                    }
+                                }
                             }
                         }
 
@@ -240,6 +330,209 @@ fun BoxScope.CoDetailSheet(
                 }
             }
         }
+    }
+}
+
+private data class CoEditLine(
+    val sku: String,
+    val name: String,
+    val qty: Int,
+)
+
+@Composable
+private fun CoEditPanel(
+    note: String,
+    lines: List<CoEditLine>,
+    busy: Boolean,
+    onNote: (String) -> Unit,
+    onQty: (String, Int) -> Unit,
+    onAdd: (ItemDto) -> Unit,
+    onRemove: (String) -> Unit,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+) {
+    var addOpen by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BbdIcon("edit", 18.dp, T.blue, sw = 2.1f)
+            Text("수주 수정", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
+        }
+
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("메모", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T.ink2)
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card)
+                    .border(1.5.dp, T.line, RoundedCornerShape(13.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                BasicTextField(
+                    value = note,
+                    onValueChange = onNote,
+                    minLines = 2,
+                    textStyle = TextStyle(fontSize = 14.sp, color = T.ink, fontFamily = com.example.bbd.ui.theme.Pretendard, lineHeight = 20.sp),
+                    cursorBrush = SolidColor(T.blue),
+                    modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { inner ->
+                        if (note.isEmpty()) Text("비고 (선택)", color = T.ink3, fontSize = 14.sp)
+                        inner()
+                    },
+                )
+            }
+        }
+
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("주문 라인", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T.ink2, modifier = Modifier.weight(1f))
+                Text("${lines.size}건", fontFamily = Mono, fontSize = 12.sp, color = T.ink3Read)
+            }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(T.card)
+                    .border(1.5.dp, T.line, RoundedCornerShape(12.dp)).clickable(enabled = !busy) { addOpen = !addOpen }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                BbdIcon(if (addOpen) "x" else "plus", 16.dp, T.ink2, sw = 2f)
+                Spacer(Modifier.size(7.dp))
+                Text(if (addOpen) "추가 닫기" else "라인 추가", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink2)
+            }
+            if (addOpen) {
+                CoLineAddSearch(
+                    selected = lines.map { it.sku },
+                    onPick = {
+                        onAdd(it)
+                        addOpen = false
+                    },
+                )
+            }
+            if (lines.isEmpty()) {
+                Text("라인이 없습니다. 최소 1개 라인이 필요합니다.", fontSize = 13.sp, color = T.red, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp), textAlign = TextAlign.Center)
+            } else {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    lines.forEach { line ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card)
+                                .border(1.dp, T.line, RoundedCornerShape(13.dp)).padding(horizontal = 12.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            PartThumb("box", size = 40.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text(line.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                CodeText(line.sku, size = 11.5.sp)
+                            }
+                            Row(Modifier.clip(RoundedCornerShape(10.dp)).border(1.5.dp, T.line, RoundedCornerShape(10.dp)), verticalAlignment = Alignment.CenterVertically) {
+                                CoStep("minus", line.qty > 1) { onQty(line.sku, -1) }
+                                Text("${line.qty}", fontFamily = Mono, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, textAlign = TextAlign.Center, modifier = Modifier.width(32.dp))
+                                CoStep("plus", true) { onQty(line.sku, 1) }
+                            }
+                            IconBtn({ onRemove(line.sku) }) { BbdIcon("trash", 17.dp, T.ink3Read, sw = 1.9f) }
+                        }
+                    }
+                }
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.weight(1f)) { CoActionButton("취소", null, busy, T.card, T.ink2, border = true, onClick = onCancel) }
+            Box(Modifier.weight(1f)) { CoActionButton("저장", "check", busy, T.blue, Color.White, onClick = onSave) }
+        }
+    }
+}
+
+@Composable
+private fun CoLineAddSearch(selected: List<String>, onPick: (ItemDto) -> Unit) {
+    val itemRepo = remember { ItemRepository() }
+    var q by remember { mutableStateOf("") }
+    var items by remember { mutableStateOf<List<ItemDto>>(emptyList()) }
+    var phase by remember { mutableStateOf(0) } // 0 idle, 1 loading, 2 empty, 3 error
+
+    LaunchedEffect(q) {
+        val keyword = q.trim()
+        items = emptyList()
+        phase = 0
+        if (keyword.length >= 2) {
+            phase = 1
+            delay(300)
+            when (val r = itemRepo.autocomplete(keyword, size = 8)) {
+                is UiState.Success -> {
+                    items = r.data.filter { !it.sku.isNullOrBlank() }
+                    phase = if (items.isEmpty()) 2 else 0
+                }
+                else -> phase = 3
+            }
+        }
+    }
+
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0xFFF7F9FC))
+            .border(1.dp, T.line, RoundedCornerShape(13.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(T.card)
+                .border(1.5.dp, T.line, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            BbdIcon("search", 17.dp, T.ink3)
+            BasicTextField(
+                value = q,
+                onValueChange = { q = it },
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 14.5.sp, color = T.ink, fontFamily = Pretendard),
+                cursorBrush = SolidColor(T.blue),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    if (q.isEmpty()) Text("부품명 또는 코드 검색", color = T.ink3, fontSize = 14.5.sp)
+                    inner()
+                },
+            )
+        }
+        Column(Modifier.fillMaxWidth().heightIn(max = 210.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            when {
+                phase == 1 -> Text("검색 중...", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp), textAlign = TextAlign.Center)
+                items.isNotEmpty() -> items.forEach { item ->
+                    val sku = item.sku.orEmpty()
+                    PickCompactRow(
+                        sku = sku,
+                        name = item.name ?: sku,
+                        meta = listOfNotNull(item.category, item.unit).filter { it.isNotBlank() }.joinToString(" · "),
+                        selected = selected.contains(sku),
+                        onClick = { onPick(item) },
+                    )
+                }
+                phase == 2 -> Text("검색 결과가 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp), textAlign = TextAlign.Center)
+                phase == 3 -> Text("검색 결과를 불러오지 못했습니다.", fontSize = 13.sp, color = T.red, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp), textAlign = TextAlign.Center)
+                else -> Text("추가할 부품을 검색하세요.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp), textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PickCompactRow(sku: String, name: String, meta: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (selected) T.hotBg else T.card)
+            .border(1.dp, if (selected) T.hotBorder else T.line, RoundedCornerShape(12.dp)).clickable(onClick = onClick)
+            .padding(horizontal = 11.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        PartThumb("box", size = 34.dp, active = selected)
+        Column(Modifier.weight(1f)) {
+            Text(name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                CodeText(sku, size = 11.sp)
+                if (meta.isNotBlank()) Text(meta, fontFamily = Mono, fontSize = 10.5.sp, color = T.ink3Read, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        BbdIcon(if (selected) "plus" else "plus", 16.dp, if (selected) T.blue else T.ink3, sw = 2.1f)
+    }
+}
+
+@Composable
+private fun CoStep(icon: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(Modifier.size(34.dp).background(T.field).clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
+        BbdIcon(icon, 15.dp, if (enabled) T.ink else T.ink3, sw = 2.1f)
     }
 }
 

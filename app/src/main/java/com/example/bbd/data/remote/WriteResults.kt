@@ -35,6 +35,15 @@ sealed interface ConfirmOrderResult {
     data class Error(val message: String) : ConfirmOrderResult
 }
 
+/** 수주 수정(OPEN only) 결과. */
+sealed interface UpdateOrderResult {
+    data class Ok(val coNumber: String) : UpdateOrderResult
+    data class Conflict(val message: String) : UpdateOrderResult
+    data object Unauthorized : UpdateOrderResult
+    data object Offline : UpdateOrderResult
+    data class Error(val message: String) : UpdateOrderResult
+}
+
 /**
  * 수주 종료(CONFIRMED→CLOSED = 지점재고 차감) 결과 — 409 를 코드로 갈라 데모 UX 분기.
  * (ProblemDetail title: CO007=재고부족, CO006=비CONFIRMED, IDEM*=멱등 재생→이미 종료=성공 간주.)

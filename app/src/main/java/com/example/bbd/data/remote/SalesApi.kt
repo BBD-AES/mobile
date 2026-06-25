@@ -6,6 +6,7 @@ import com.example.bbd.data.remote.dto.CustomerOrderPageDto
 import com.example.bbd.data.remote.dto.CustomerOrderStatusChangeDto
 import com.example.bbd.data.remote.dto.SalesOrderDetailDto
 import com.example.bbd.data.remote.dto.SalesOrderPageDto
+import com.example.bbd.data.remote.dto.UpdateCustomerOrderRequest
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -13,6 +14,7 @@ import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.PUT
 import retrofit2.http.Query
 
 /**
@@ -68,6 +70,13 @@ interface SalesApi {
     /** 수주 상세(라인 포함) — close 확인 모달에서 차감 품목 표시용. */
     @GET("sales/api/v1/customer-orders/{coNumber}")
     suspend fun customerOrder(@Path("coNumber") coNumber: String): CustomerOrderDetailDto
+
+    /** 수주 수정(OPEN only): note/lines 전체 교체. */
+    @PUT("sales/api/v1/customer-orders/{coNumber}")
+    suspend fun updateCustomerOrder(
+        @Path("coNumber") coNumber: String,
+        @Body request: UpdateCustomerOrderRequest,
+    ): Response<CustomerOrderDetailDto>
 
     /** 수주 확정(OPEN→CONFIRMED). 비-OPEN 이면 409(CO004). */
     @PATCH("sales/api/v1/customer-orders/{coNumber}/confirm")

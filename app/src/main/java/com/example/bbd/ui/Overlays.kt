@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,8 +48,20 @@ fun BoxScope.SheetHost(
     open: Boolean,
     onClose: () -> Unit,
     title: String? = null,
+    avoidIme: Boolean = false,
+    maxHeightFraction: Float? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val config = LocalConfiguration.current
+    val maxHeight = maxHeightFraction?.let { config.screenHeightDp.dp * it }
+    val sheetModifier = Modifier
+        .fillMaxWidth()
+        .then(if (avoidIme) Modifier.imePadding() else Modifier)
+        .then(if (maxHeight != null) Modifier.heightIn(max = maxHeight) else Modifier)
+        .shadow(20.dp, SheetShape, clip = false)
+        .clip(SheetShape)
+        .background(T.card)
+
     AnimatedVisibility(open, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(T.scrim).clickable(interactionSource = null, indication = null, onClick = onClose))
     }
@@ -56,9 +71,7 @@ fun BoxScope.SheetHost(
         enter = slideInVertically(tween(300)) { it },
         exit = slideOutVertically(tween(240)) { it },
     ) {
-        Column(
-            Modifier.fillMaxWidth().shadow(20.dp, SheetShape, clip = false).clip(SheetShape).background(T.card)
-        ) {
+        Column(sheetModifier) {
             // 그래버
             Box(Modifier.fillMaxWidth().padding(top = 10.dp), contentAlignment = Alignment.TopCenter) {
                 Box(Modifier.width(38.dp).height(4.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFFDDE2EC)))

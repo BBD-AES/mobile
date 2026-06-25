@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -96,6 +99,7 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
     var customer by remember { mutableStateOf("") }
     var memo by remember { mutableStateOf("") }
     var lines by remember { mutableStateOf<List<Pair<String, Int>>>(if (preset != null) listOf(preset.sku to 1) else emptyList()) }
+    var itemNames by remember { mutableStateOf<Map<String, String>>(preset?.let { mapOf(it.sku to it.name) } ?: emptyMap()) }
     var pickOpen by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<OrderUi?>(null) }
@@ -107,9 +111,12 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
     val totalQty = lines.sumOf { it.second }
     val canSubmit = lines.isNotEmpty() && !submitting
 
-    fun addLine(sku: String) {
-        lines = if (lines.any { it.first == sku }) lines.map { if (it.first == sku) it.first to (it.second + 1) else it }
-        else lines + (sku to 1)
+    fun addLine(sku: String, name: String? = null) {
+        val cleanSku = sku.trim()
+        val cleanName = name?.trim().orEmpty()
+        if (cleanName.isNotBlank()) itemNames = itemNames + (cleanSku to cleanName)
+        lines = if (lines.any { it.first == cleanSku }) lines.map { if (it.first == cleanSku) it.first to (it.second + 1) else it }
+        else lines + (cleanSku to 1)
     }
     fun setQty(sku: String, d: Int) { lines = lines.map { if (it.first == sku) it.first to (it.second + d).coerceAtLeast(1) else it } }
     fun removeLine(sku: String) { lines = lines.filterNot { it.first == sku } }
@@ -119,7 +126,8 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
         if (sku != null) {
             if (BuildConfig.USE_API) {
                 scope.launch {
-                    if ((itemRepo.resolve(sku) as? UiState.Success)?.data != null) addLine(sku)
+                    val item = (itemRepo.resolve(sku) as? UiState.Success)?.data
+                    if (item?.sku != null) addLine(item.sku, item.name)
                     else scanToast = "미등록 부품: $sku"
                 }
             } else if (Seed.partBySku(sku) != null) addLine(sku) else scanToast = "미등록 부품: $sku"
@@ -186,10 +194,11 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         lines.forEach { (sku, q) ->
                             val p = Seed.partBySku(sku)
+                            val name = itemNames[sku] ?: p?.name ?: sku
                             Row(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 13.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 PartThumb(p?.thumb ?: "box", size = 44.dp, active = true)
                                 Column(Modifier.weight(1f)) {
-                                    Text(p?.name ?: sku, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(name, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     CodeText(sku, size = 12.sp)
                                 }
                                 Row(Modifier.clip(RoundedCornerShape(10.dp)).border(1.5.dp, T.line, RoundedCornerShape(10.dp)), verticalAlignment = Alignment.CenterVertically) {
@@ -247,8 +256,8 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
         }
 
         // 부품 검색 추가 시트
-        SheetHost(pickOpen, { pickOpen = false }, title = "부품 추가") {
-            PartPickList(apiMode = BuildConfig.USE_API, selected = lines.map { it.first }) { sku -> addLine(sku); pickOpen = false }
+        SheetHost(pickOpen, { pickOpen = false }, title = "부품 추가", avoidIme = true, maxHeightFraction = 0.82f) {
+            PartPickList(apiMode = BuildConfig.USE_API, selected = lines.map { it.first }) { sku, name -> addLine(sku, name); pickOpen = false }
         }
 
         // 결과 모달
@@ -293,22 +302,25 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
 }
 
 @Composable
-private fun PartPickList(apiMode: Boolean, selected: List<String>, onPick: (String) -> Unit) {
+private fun PartPickList(apiMode: Boolean, selected: List<String>, onPick: (String, String?) -> Unit) {
     var q by remember { mutableStateOf("") }
-    // API 모드: 입력 코드(SKU)를 item-service 로 해석(번들 시드 카탈로그 대체). 시드 모드: Seed.PARTS 필터.
+    val focus = LocalFocusManager.current
+    val resultMaxHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.34f).coerceAtMost(300.dp)
+    val resultTap = remember { MutableInteractionSource() }
+    // API 모드: item-service OpenSearch 자동검색(search/auto). 시드 모드: Seed.PARTS 필터.
     val itemRepo = remember { ItemRepository() }
-    var apiItem by remember { mutableStateOf<ItemDto?>(null) }
-    var apiPhase by remember { mutableStateOf(0) } // 0=idle 1=조회중 2=없음
+    var apiItems by remember { mutableStateOf<List<ItemDto>>(emptyList()) }
+    var apiPhase by remember { mutableStateOf(0) } // 0=idle 1=검색중 2=없음 3=오류
     if (apiMode) {
         LaunchedEffect(q) {
-            val code = q.trim()
-            apiItem = null; apiPhase = 0
-            if (code.length >= 3) {
+            val keyword = q.trim()
+            apiItems = emptyList(); apiPhase = 0
+            if (keyword.length >= 2) {
                 apiPhase = 1
-                delay(350)
-                when (val r = itemRepo.resolve(code)) {
-                    is UiState.Success -> { apiItem = r.data; apiPhase = if (r.data == null) 2 else 0 }
-                    else -> apiPhase = 2
+                delay(300)
+                when (val r = itemRepo.autocomplete(keyword, size = 10)) {
+                    is UiState.Success -> { apiItems = r.data.filter { !it.sku.isNullOrBlank() }; apiPhase = if (apiItems.isEmpty()) 2 else 0 }
+                    else -> apiPhase = 3
                 }
             }
         }
@@ -318,25 +330,40 @@ private fun PartPickList(apiMode: Boolean, selected: List<String>, onPick: (Stri
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card).border(1.5.dp, T.line, RoundedCornerShape(13.dp)).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             BbdIcon("search", 19.dp, T.ink3)
             BasicTextField(
-                value = q, onValueChange = { q = if (apiMode) it.uppercase() else it }, singleLine = true,
+                value = q, onValueChange = { q = it }, singleLine = true,
                 textStyle = TextStyle(fontSize = 15.5.sp, color = T.ink, fontFamily = Pretendard),
                 cursorBrush = SolidColor(T.blue), modifier = Modifier.weight(1f),
-                decorationBox = { inner -> if (q.isEmpty()) Text(if (apiMode) "부품 코드(SKU) 입력" else "부품명 또는 코드", color = T.ink3, fontSize = 15.5.sp, fontFamily = Pretendard); inner() },
+                decorationBox = { inner -> if (q.isEmpty()) Text("부품명 또는 코드 검색", color = T.ink3, fontSize = 15.5.sp, fontFamily = Pretendard); inner() },
             )
         }
         Spacer(Modifier.size(12.dp))
-        Column(Modifier.fillMaxWidth().heightIn(max = 380.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Column(
+            Modifier.fillMaxWidth()
+                .heightIn(min = 150.dp, max = resultMaxHeight)
+                .clickable(interactionSource = resultTap, indication = null) { focus.clearFocus() }
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
             if (apiMode) {
-                val it0 = apiItem
                 when {
-                    apiPhase == 1 -> Text("조회 중…", fontSize = 14.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp), textAlign = TextAlign.Center)
-                    it0 != null -> PickRow(sku = it0.sku ?: "", name = it0.name ?: (it0.sku ?: ""), meta = it0.category ?: "", on = selected.contains(it0.sku), onClick = { it0.sku?.let(onPick) })
-                    apiPhase == 2 -> Text("'${q.trim()}' 품목을 찾을 수 없습니다.", fontSize = 14.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp), textAlign = TextAlign.Center)
-                    else -> Text("부품 코드(SKU)를 입력하세요.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp), textAlign = TextAlign.Center)
+                    apiPhase == 1 -> Text("검색 중…", fontSize = 14.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp), textAlign = TextAlign.Center)
+                    apiItems.isNotEmpty() -> apiItems.forEach { item ->
+                        val sku = item.sku.orEmpty()
+                        PickRow(
+                            sku = sku,
+                            name = item.name ?: sku,
+                            meta = listOfNotNull(item.category, item.unit).filter { it.isNotBlank() }.joinToString(" · "),
+                            on = selected.contains(sku),
+                            onClick = { onPick(sku, item.name) },
+                        )
+                    }
+                    apiPhase == 2 -> Text("'${q.trim()}' 검색 결과가 없습니다.", fontSize = 14.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp), textAlign = TextAlign.Center)
+                    apiPhase == 3 -> Text("검색 결과를 불러오지 못했습니다.", fontSize = 14.sp, color = T.red, modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp), textAlign = TextAlign.Center)
+                    else -> Text("부품명이나 코드를 입력해 검색하세요.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp), textAlign = TextAlign.Center)
                 }
             } else {
                 seedList.forEach { p ->
-                    PickRow(sku = p.sku, name = p.name, meta = "${p.qty}${p.unit}", on = selected.contains(p.sku), thumb = p.thumb, onClick = { onPick(p.sku) })
+                    PickRow(sku = p.sku, name = p.name, meta = "${p.qty}${p.unit}", on = selected.contains(p.sku), thumb = p.thumb, onClick = { onPick(p.sku, p.name) })
                 }
                 if (seedList.isEmpty()) Text("검색 결과가 없습니다.", fontSize = 14.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp), textAlign = TextAlign.Center)
             }
