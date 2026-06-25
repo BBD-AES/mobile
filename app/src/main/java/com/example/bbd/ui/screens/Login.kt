@@ -1,5 +1,6 @@
 package com.example.bbd.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +35,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
+import com.example.bbd.R
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -211,9 +214,7 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
         verticalArrangement = Arrangement.Center,
     ) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(60.dp).clip(RoundedCornerShape(17.dp)).background(T.ink), contentAlignment = Alignment.Center) {
-                Text("BBD", fontFamily = Mono, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Color.White, letterSpacing = (-0.6).sp)
-            }
+            Image(painterResource(R.drawable.bbd_logo), contentDescription = "BBD", modifier = Modifier.size(width = 72.dp, height = 63.dp))
             Spacer(Modifier.size(18.dp))
             Text("BBD ERP 현장 모바일", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, letterSpacing = (-0.7).sp)
             Spacer(Modifier.size(8.dp))
@@ -265,9 +266,7 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
 @Composable
 private fun LogoLockup() {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(T.ink), contentAlignment = Alignment.Center) {
-            Text("BBD", fontFamily = Mono, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color.White, letterSpacing = (-0.6).sp)
-        }
+        Image(painterResource(R.drawable.bbd_logo), contentDescription = "BBD", modifier = Modifier.size(width = 54.dp, height = 47.dp))
         Column {
             Text("BBD ERP", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, letterSpacing = (-0.4).sp)
             Text("현장 모바일", fontSize = 13.sp, color = T.ink3Read, fontWeight = FontWeight.SemiBold)

@@ -10,6 +10,7 @@ import com.example.bbd.data.CurrentUser
 import com.example.bbd.data.Part
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
+import com.example.bbd.data.remote.dto.NotificationDto
 
 /**
  * 앱 전역 상태(셸 보유) — 디자인의 `AppData` 컨텍스트 대응.
@@ -21,6 +22,7 @@ import com.example.bbd.data.Seed
 class AppData(
     inbound: List<SalesOrder>,
     received: List<SalesOrder>,
+    notifications: List<NotificationDto> = Seed.NOTIFICATIONS,
 ) {
     var inbound by mutableStateOf(inbound); private set
     var received by mutableStateOf(received); private set
@@ -32,12 +34,22 @@ class AppData(
     var orders by mutableStateOf<List<OrderRec>>(emptyList()); private set
     private var stockOverride by mutableStateOf<Map<String, Int>>(emptyMap())
 
-    /** 도착 확인(입고 확정) — inbound 에서 제거 → received 맨 앞 추가. 같은 발주 중복 방지. */
-    fun confirmReceive(soNumber: String) {
+    // ── 지점 알림함 — 시드 모드는 Seed.NOTIFICATIONS, API 모드는 화면이 repo 로 setNotifications. ──
+    var notifications by mutableStateOf(notifications); private set
+    val unreadCount: Int get() = notifications.count { !it.read }
+    fun loadNotifications(list: List<NotificationDto>) { notifications = list }
+    /** 읽음 처리(낙관적) — 해당 id 를 read=true 로. 서버 PATCH 는 화면에서 best-effort 호출. */
+    fun markNotifRead(id: Long?) {
+        if (id == null) return
+        notifications = notifications.map { if (it.id == id) it.copy(read = true) else it }
+    }
+
+    /** 도착 확인(입고 확정) — inbound 에서 제거 → received 맨 앞 추가. 같은 발주 중복 방지. by=입고자 이름. */
+    fun confirmReceive(soNumber: String, by: String = "") {
         val hit = inbound.firstOrNull { it.so == soNumber } ?: return
         inbound = inbound.filterNot { it.so == soNumber }
         val now = nowHHMM()
-        val moved = hit.copy(status = "RECEIVED", date = Seed.DEMO_TODAY, time = now)
+        val moved = hit.copy(status = "RECEIVED", date = Seed.DEMO_TODAY, time = now, receivedBy = by.ifBlank { hit.receivedBy })
         if (received.none { it.so == soNumber }) received = listOf(moved) + received
     }
 
@@ -93,4 +105,6 @@ val LocalAppData = staticCompositionLocalOf<AppData> { error("AppData not provid
 val LocalMe = staticCompositionLocalOf<CurrentUser> { Seed.USER }
 
 @Composable
-fun rememberAppData(): AppData = remember { AppData(Seed.INBOUND, Seed.RECEIVED) }
+fun rememberAppData(): AppData = remember {
+    AppData(Seed.INBOUND, Seed.RECEIVED, if (com.example.bbd.BuildConfig.USE_API) emptyList() else Seed.NOTIFICATIONS)
+}

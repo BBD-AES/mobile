@@ -101,6 +101,14 @@ private val ICONS: Map<String, List<Prim>> = mapOf(
     "cart" to listOf(Ci(9f, 20f, 1.3f), Ci(18f, 20f, 1.3f), Pa("M3 4h2l2.4 11.2a1.6 1.6 0 0 0 1.57 1.3h8.4a1.6 1.6 0 0 0 1.56-1.2L21 7.5H6")),
     "wifiOff" to listOf(Pa("M3 3 21 21"), Pa("M12 20h.01"), Pa("M9 16.5a4 4 0 0 1 4.9-.6"), Pa("M5 13a10 10 0 0 1 4-2.5"), Pa("M19.5 13a10 10 0 0 0-3-2.1")),
     "doc" to listOf(Pa("M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"), Pa("M14 3v5h5"), Pa("M9 13h6M9 17h6")),
+    // ── 물류/상태 아이콘 ── (truck 누락 시 입고 행 글리프가 빈 원으로 렌더되던 결함 수정)
+    "truck" to listOf(
+        Pa("M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"),
+        Pa("M15 18H9"),
+        Pa("M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"),
+        Ci(7f, 18f, 2f), Ci(17f, 18f, 2f),
+    ),
+    "clock" to listOf(Ci(12f, 12f, 9f), Pa("M12 7v5l3 2")),
 )
 
 /** 라인 아이콘. */

@@ -22,9 +22,13 @@ class SalesOrderRepository(
     suspend fun arrivals(warehouseCode: String): UiState<List<SalesOrderSummaryDto>> =
         call { searchAll(status = "IN_FULFILLMENT", toWarehouseCode = warehouseCode) }
 
-    /** 내 지점의 전체 보충 발주(상태 무관). */
-    suspend fun branchOrders(warehouseCode: String): UiState<List<SalesOrderSummaryDto>> =
-        call { searchAll(toWarehouseCode = warehouseCode) }
+    /** 내 지점의 전체 보충 발주(상태 무관). 기간(start/end_date, yyyy-MM-dd) 선택. */
+    suspend fun branchOrders(
+        warehouseCode: String,
+        startDate: String? = null,
+        endDate: String? = null,
+    ): UiState<List<SalesOrderSummaryDto>> =
+        call { searchAll(toWarehouseCode = warehouseCode, startDate = startDate, endDate = endDate) }
 
     /** 내가 입고 확인한 발주(작업 이력 소스 후보). */
     suspend fun receivedByMe(empId: String): UiState<List<SalesOrderSummaryDto>> =
@@ -50,6 +54,8 @@ class SalesOrderRepository(
         toWarehouseCode: String? = null,
         requestedBy: String? = null,
         receivedBy: String? = null,
+        startDate: String? = null,
+        endDate: String? = null,
     ): List<SalesOrderSummaryDto> {
         val all = mutableListOf<SalesOrderSummaryDto>()
         var page = 0
@@ -59,6 +65,8 @@ class SalesOrderRepository(
                 toWarehouseCode = toWarehouseCode,
                 requestedBy = requestedBy,
                 receivedBy = receivedBy,
+                startDate = startDate,
+                endDate = endDate,
                 page = page,
                 size = PAGE_SIZE,
             )

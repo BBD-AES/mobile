@@ -49,7 +49,7 @@ import com.example.bbd.ui.theme.T
 // ───────────────────────── Modifier 헬퍼 ─────────────────────────
 
 /** 흰 카드 (보더 + 부드러운 그림자 + 라운드). */
-fun Modifier.bbdCard(radius: Dp = 16.dp, shadowDp: Dp = 3.dp): Modifier {
+fun Modifier.bbdCard(radius: Dp = 13.dp, shadowDp: Dp = 2.dp): Modifier {
     val shape: Shape = RoundedCornerShape(radius)
     return this
         .shadow(shadowDp, shape, clip = false, ambientColor = T.ink, spotColor = T.ink)
@@ -142,6 +142,24 @@ fun QueueBtn(count: Int, onClick: () -> Unit) {
     }
 }
 
+/** 지점 알림함 진입 — 벨 + 미읽음 카운트(빨강) 배지. 미읽음 0이면 배지 숨김(벨만). */
+@Composable
+fun BellBtn(count: Int, onClick: () -> Unit) {
+    Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        BbdIcon("bell", 22.dp, T.ink, sw = 1.9f)
+        if (count > 0) {
+            Box(
+                Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 2.dp)
+                    .size(17.dp).clip(CircleShape).background(Color.White).padding(2.dp)
+                    .clip(CircleShape).background(T.red),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("${if (count > 9) "9+" else count}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, fontFamily = Pretendard)
+            }
+        }
+    }
+}
+
 /** "방금 / N분 전 / N시간 전" 상대 갱신 라벨. */
 fun agoLabel(ms: Long): String {
     if (ms <= 0) return ""
@@ -218,7 +236,7 @@ private data class Tab(val id: String, val label: String, val icon: String)
 private val TABS = listOf(
     Tab("home", "홈", "home"),
     Tab("inventory", "재고", "box"),
-    Tab("worklog", "작업이력", "list"),
+    Tab("worklog", "이력", "list"),
     Tab("my", "마이", "user"),
 )
 

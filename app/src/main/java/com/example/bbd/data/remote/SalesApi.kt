@@ -2,6 +2,8 @@ package com.example.bbd.data.remote
 
 import com.example.bbd.data.remote.dto.CreateCustomerOrderRequest
 import com.example.bbd.data.remote.dto.CustomerOrderDetailDto
+import com.example.bbd.data.remote.dto.CustomerOrderPageDto
+import com.example.bbd.data.remote.dto.CustomerOrderStatusChangeDto
 import com.example.bbd.data.remote.dto.SalesOrderPageDto
 import retrofit2.Response
 import retrofit2.http.Body
@@ -25,6 +27,8 @@ interface SalesApi {
         @Query("to_warehouse_code") toWarehouseCode: String? = null,
         @Query("requested_by") requestedBy: String? = null,
         @Query("received_by") receivedBy: String? = null,
+        @Query("start_date") startDate: String? = null,  // yyyy-MM-dd (SalesOrderController @DateTimeFormat)
+        @Query("end_date") endDate: String? = null,       // yyyy-MM-dd
         @Query("page") page: Int = 0,
         @Query("size") size: Int = 50,
     ): SalesOrderPageDto
@@ -42,4 +46,37 @@ interface SalesApi {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body request: CreateCustomerOrderRequest,
     ): Response<CustomerOrderDetailDto>
+
+    /** 현장 수주 목록 검색. 지점은 서버가 본인지점(이름축)으로 스코프. 모든 파라미터 선택. */
+    @GET("sales/api/v1/customer-orders")
+    suspend fun searchCustomerOrders(
+        @Query("status") status: String? = null,
+        @Query("dealer_warehouse_code") dealerWarehouseCode: String? = null,
+        @Query("customer_name") customerName: String? = null,
+        @Query("requested_by") requestedBy: String? = null,
+        @Query("start_date") startDate: String? = null,  // yyyy-MM-dd
+        @Query("end_date") endDate: String? = null,       // yyyy-MM-dd
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 50,
+    ): CustomerOrderPageDto
+
+    /** 수주 상세(라인 포함) — close 확인 모달에서 차감 품목 표시용. */
+    @GET("sales/api/v1/customer-orders/{coNumber}")
+    suspend fun customerOrder(@Path("coNumber") coNumber: String): CustomerOrderDetailDto
+
+    /** 수주 확정(OPEN→CONFIRMED). 비-OPEN 이면 409(CO004). */
+    @PATCH("sales/api/v1/customer-orders/{coNumber}/confirm")
+    suspend fun confirmCustomerOrder(@Path("coNumber") coNumber: String): Response<CustomerOrderStatusChangeDto>
+
+    /**
+     * 수주 종료(CONFIRMED→CLOSED) = 지점재고 동기 차감(전 라인 전량, 부분출고 없음).
+     * 부족하면 409 CO007(지점재고 부족·차감 0), 비CONFIRMED 면 409 CO006.
+     * Idempotency-Key=클라 생성 UUID(요청 1건당 1키, 재시도 시 동일키) — sales 요청멱등.
+     * (이중 차감 최종 보루는 inventory 가 referenceNumber=coNumber 로 dedup.)
+     */
+    @PATCH("sales/api/v1/customer-orders/{coNumber}/close")
+    suspend fun closeCustomerOrder(
+        @Path("coNumber") coNumber: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+    ): Response<CustomerOrderStatusChangeDto>
 }

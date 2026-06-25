@@ -18,15 +18,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -36,10 +36,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
+import com.example.bbd.data.remote.UiState
+import com.example.bbd.data.repo.NotificationRepository
 import com.example.bbd.ui.BbdIcon
+import com.example.bbd.ui.BellBtn
 import com.example.bbd.ui.LocalAppData
 import com.example.bbd.ui.LocalMe
 import com.example.bbd.ui.Nav
+import com.example.bbd.ui.NotificationSheet
 import com.example.bbd.ui.QueueBtn
 import com.example.bbd.ui.SoDetailSheet
 import com.example.bbd.ui.SoRow
@@ -47,16 +51,49 @@ import com.example.bbd.ui.bbdCard
 import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.T
-
-private val HeroGradient = Brush.linearGradient(listOf(Color(0xFF3360E6), Color(0xFF2647B8)))
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val me = LocalMe.current
     val app = LocalAppData.current
-    val waiting = app.inbound.size
+    val waiting = nav.queueCount
     val recent = app.received.take(3)
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
+    var notifOpen by remember { mutableStateOf(false) }
+    var notifLoading by remember { mutableStateOf(false) }
+    var notifError by remember { mutableStateOf<String?>(null) }
+    var notifReload by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+    val notifRepo = remember { NotificationRepository() }
+    // API 모드: 지점 알림 로드(로딩/에러 추적, 재시도=notifReload). 시드 모드는 Seed.NOTIFICATIONS(빌더 주입) 유지.
+    LaunchedEffect(notifReload) {
+        if (com.example.bbd.BuildConfig.USE_API) {
+            notifLoading = true; notifError = null
+            app.loadNotifications(emptyList())
+            when (val r = notifRepo.inbox()) {
+                is UiState.Success -> app.loadNotifications(r.data)
+                is UiState.Error -> notifError = r.message
+                else -> {}
+            }
+            notifLoading = false
+        }
+    }
+    // 실시간 근사 — 무음 폴링(20s). 로딩/클리어 토글 없이 목록만 교체해 벨 카운트가 깜빡임 없이 자동 갱신된다.
+    // (submitted→점장 알람 증가 / stock-replenished 입고를 포그라운드 유지 중에도 반영. 프로덕션 푸시(FCM/SSE)는 후속.)
+    if (com.example.bbd.BuildConfig.USE_API) {
+        LaunchedEffect(Unit) {
+            while (isActive) {
+                delay(20_000)
+                when (val r = notifRepo.inbox()) {
+                    is UiState.Success -> app.loadNotifications(r.data)
+                    else -> {}
+                }
+            }
+        }
+    }
 
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
@@ -73,9 +110,19 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                     val sub = listOf(me.branch, me.branchCode, me.position).filter { it.isNotBlank() }.joinToString(" · ")
                     Text(sub, fontSize = 12.5.sp, color = T.ink3Read, fontFamily = Mono)
                 }
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable { app.refresh() }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable {
+                    app.refresh()
+                    // 수동 새로고침은 알림함도 즉시 무음 refetch(벨 카운트 동기화).
+                    if (com.example.bbd.BuildConfig.USE_API) scope.launch {
+                        when (val r = notifRepo.inbox()) {
+                            is UiState.Success -> app.loadNotifications(r.data)
+                            else -> {}
+                        }
+                    }
+                }, contentAlignment = Alignment.Center) {
                     BbdIcon("refresh", 20.dp, if (app.refreshing) T.blue else T.ink2)
                 }
+                BellBtn(app.unreadCount) { notifOpen = true }
                 QueueBtn(waiting, nav.openQueue)
             }
 
@@ -117,22 +164,22 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                         horizontalArrangement = Arrangement.spacedBy(11.dp),
                     ) {
                         BbdIcon("info", 18.dp, T.ink3Read)
-                        Text("지점 발주 요청·결과는 웹 ERP에서 확인합니다. (모바일 알림 준비 중)", fontSize = 12.5.sp, color = T.ink2, lineHeight = 19.sp)
+                        Text("지점 이동요청 작성·결과는 웹 ERP에서 확인합니다. 도착·보충 알림은 상단 알림함에서.", fontSize = 12.5.sp, color = T.ink2, lineHeight = 19.sp)
                     }
                     Spacer(Modifier.size(20.dp))
                 }
 
-                // 최근 입고 확인 (미리보기 · 전체는 '내 작업 이력')
+                // 최근 입고 완료 (미리보기 · 전체는 이동요청 이력)
                 Column(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 16.dp)) {
                     Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("최근 입고 확인", fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.weight(1f))
+                        Text("최근 입고 완료", fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink, modifier = Modifier.weight(1f))
                         Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { nav.tab("worklog") }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("더보기 ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.blue)
                             BbdIcon("chevR", 15.dp, T.blue)
                         }
                     }
                     if (recent.isEmpty()) {
-                        Text("아직 입고 확인한 발주가 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Text("아직 입고 완료한 이동요청이 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     } else {
                         recent.forEachIndexed { i, so ->
                             SoRow(so, toShort = me.warehouseName.removeSuffix(" 창고"), onClick = { sel = so }, divider = i < recent.lastIndex)
@@ -144,6 +191,20 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
         }
 
         SoDetailSheet(sel, me.name, me.warehouseName, onClose = { sel = null })
+        NotificationSheet(
+            open = notifOpen,
+            items = app.notifications,
+            loading = notifLoading,
+            error = notifError,
+            onRetry = { notifReload++ },
+            onMarkRead = { id ->
+                app.markNotifRead(id)
+                if (com.example.bbd.BuildConfig.USE_API && id != null) scope.launch { notifRepo.markRead(id) }
+            },
+            // 도착 대기(IN_FULFILLMENT, 큐에 있는) SO 만 큐로 점프 — 백오더/입고완료는 없는 큐로 보내지 않음.
+            onOpenSo = { so -> if (app.inbound.any { it.so == so }) { notifOpen = false; nav.openQueue() } },
+            onClose = { notifOpen = false },
+        )
     }
 }
 
@@ -166,36 +227,24 @@ private fun WorkCard(icon: String, title: String, metaTop: String, metaBottom: S
 
 @Composable
 private fun ArrivalHero(waiting: Int, onClick: () -> Unit) {
-    Box(
-        Modifier.fillMaxWidth()
-            .shadow(12.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = Color(0xFF26408F), spotColor = Color(0xFF26408F))
-            .clip(RoundedCornerShape(20.dp)).background(HeroGradient).clickable(onClick = onClick)
-            .padding(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 24.dp),
+    // AI 티(파란 그라데이션 hero) 제거 — 다른 카드와 동일한 플랫 업무 카드. 숫자만 accent 로 위계, 그림자/CTA 알약 없음.
+    Row(
+        Modifier.fillMaxWidth().bbdCard().clickable(onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Box(Modifier.align(Alignment.TopEnd)) { BbdIcon("chevR", 24.dp, Color.White.copy(alpha = 0.92f), sw = 2.2f) }
-        Column {
-            Box(Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                BbdIcon("truck", 28.dp, Color.White, sw = 1.9f)
-            }
-            Spacer(Modifier.size(22.dp))
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("도착 대기", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, letterSpacing = (-0.4).sp)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("$waiting", fontFamily = Mono, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                    Text("건", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
-                }
-            }
-            Spacer(Modifier.size(5.dp))
-            Text("내 창고로 이동 중 · 도착 확인하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.82f))
-            Spacer(Modifier.size(16.dp))
-            Row(
-                Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White.copy(alpha = 0.18f)).padding(horizontal = 13.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                BbdIcon("list", 15.dp, Color.White, sw = 1.9f)
-                Text("도착 대기 목록 보기", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            }
+        Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(T.blueSoft), contentAlignment = Alignment.Center) {
+            BbdIcon("truck", 23.dp, T.blue, sw = 1.9f)
         }
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("도착 대기", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
+                Text("$waiting", fontFamily = Mono, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = T.blue)
+                Text("건", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
+            }
+            Spacer(Modifier.size(3.dp))
+            Text("내 창고로 이동 중 · 탭하여 도착 확인", fontSize = 12.5.sp, color = T.ink3Read, lineHeight = 18.sp)
+        }
+        BbdIcon("chevR", 20.dp, T.ink3Read, sw = 2f)
     }
 }
 
@@ -211,7 +260,7 @@ private fun ArrivalEmptyCard() {
         Column(Modifier.weight(1f)) {
             Text("도착 대기 없음", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
             Spacer(Modifier.size(3.dp))
-            Text("이동 중인 발주가 없습니다. 부품 도착 시 아래 스캔으로 입고하세요.", fontSize = 12.5.sp, color = T.ink3Read, lineHeight = 18.sp)
+            Text("이동 중인 입고가 없습니다. 부품 도착 시 아래 스캔으로 입고하세요.", fontSize = 12.5.sp, color = T.ink3Read, lineHeight = 18.sp)
         }
     }
 }

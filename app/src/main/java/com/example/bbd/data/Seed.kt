@@ -1,5 +1,7 @@
 package com.example.bbd.data
 
+import com.example.bbd.data.remote.dto.NotificationDto
+
 /**
  * 시드 데이터 — 웹 프로토타입 bbd-data.jsx 기준.
  *
@@ -39,13 +41,13 @@ object Seed {
     /** 역할별 모바일 이용 권한(마이 > 이용 권한). */
     val ROLE_PERMS: Map<String, RolePerms> = mapOf(
         "BRANCH_STAFF" to RolePerms(
-            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "내 작업 이력"),
+            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "이동요청 이력"),
             web = emptyList(),
-            cant = listOf("지점 발주 요청(점장 전용)", "재고 조정(본사 전용)"),
+            cant = listOf("지점 이동요청(점장 전용)", "재고 조정(본사 전용)"),
         ),
         "BRANCH_MANAGER" to RolePerms(
-            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "내 작업 이력"),
-            web = listOf("지점 발주 요청", "발주 결과 확인"),
+            can = listOf("입고 스캔·도착 확인", "지점 재고 조회", "이동요청 이력"),
+            web = listOf("지점 이동요청 작성", "이동요청 결과 확인"),
             cant = listOf("재고 조정(본사 전용)"),
         ),
     )
@@ -73,12 +75,15 @@ object Seed {
         Part("BBD-BRK-4005", "DOT4 브레이크 액 1L", "제동", "BR-oil", 22, "EA", StockStatus.OK, 15, WH),
         Part("BBD-EXT-8001", "와이퍼 24인치", "외장·기타", "EX-wpr", 18, "EA", StockStatus.OK, 15, WH),
         Part("BBD-EXT-8005", "워셔액 2L", "외장·기타", "EX-wsh", 38, "EA", StockStatus.OK, 20, WH),
+        // 실 카탈로그 SKU — 데모(USE_API=false) 모드에서도 같은 QR(ACC-000043)이 잡히도록 시드에 등재.
+        // QR 인식은 모드 무관 동일: 라이브는 item-service 해석, 데모는 partBySku 가 이 항목으로 해석.
+        Part("ACC-000043", "현대 아반떼 CN7 소모품 키트", "소모품", "box", 12, "SET", StockStatus.OK, 6, WH),
     )
 
-    val INV_SUMMARY = InvSummary(total = 9, short = 2, none = 1, ok = 6)
+    val INV_SUMMARY = InvSummary(total = 10, short = 2, none = 1, ok = 7)
 
     /** 재고 조회 필터 카테고리 칩(시드 모드 고정 목록 — API 모드는 실 재고에서 도출). */
-    val CATEGORIES = listOf("엔진/오일", "엔진/필터", "제동", "전장", "외장·기타")
+    val CATEGORIES = listOf("소모품", "엔진/오일", "엔진/필터", "제동", "전장", "외장·기타")
 
     // ────────── 도착 대기 SO (IN_FULFILLMENT, to_warehouse_code=WH-BR-001) ──────────
     // GET /api/v1/sales-orders?status=IN_FULFILLMENT&to_warehouse_code=WH-BR-001
@@ -86,10 +91,10 @@ object Seed {
         SalesOrder("SO-2026-0061", "IN_FULFILLMENT", "본사 중앙창고", "WH-HQ-001", "WH-BR-001", lines = listOf(
             SoLine("BBD-OIL-1006", "엔진오일 5W-30 1L", 40, "EA", "OIL-btl"),
             SoLine("BBD-FLT-2002", "오일필터 HD-O2", 20, "EA", "EN-fil"),
-        )),
+        ), requestedBy = "이상철"),
         SalesOrder("SO-2026-0058", "IN_FULFILLMENT", "본사 중앙창고", "WH-HQ-001", "WH-BR-001", lines = listOf(
             SoLine("BBD-ELE-7002", "배터리 60AH", 10, "EA", "EL-bat"),
-        )),
+        ), requestedBy = "정민수"),
     )
 
     // ────────── 내가 도착 확인한 SO (RECEIVED, received_by=BR002) — 최신순 ──────────
@@ -97,36 +102,49 @@ object Seed {
         SalesOrder("SO-2026-0054", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-22", time = "09:14", lines = listOf(
             SoLine("BBD-FLT-2001", "에어필터 HD-A1", 60, "EA", "EN-air"),
             SoLine("BBD-FLT-2002", "오일필터 HD-O2", 30, "EA", "EN-fil"),
-        )),
+        ), receivedBy = "정민수"),
         SalesOrder("SO-2026-0049", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-21", time = "17:22", lines = listOf(
             SoLine("BBD-BRK-4001", "전방 브레이크 패드", 30, "SET", "BR-pad"),
-        )),
+        ), receivedBy = "정민수"),
         SalesOrder("SO-2026-0045", "RECEIVED", "강남 2지점 창고", "WH-BR-002", date = "2026-05-21", time = "14:08", lines = listOf(
             SoLine("BBD-BRK-4005", "DOT4 브레이크 액 1L", 12, "EA", "BR-oil"),
-        )),
+        ), receivedBy = "이상철"),
         SalesOrder("SO-2026-0041", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-19", time = "11:08", lines = listOf(
             SoLine("BBD-EXT-8001", "와이퍼 24인치", 24, "EA", "EX-wpr"),
             SoLine("BBD-EXT-8005", "워셔액 2L", 40, "EA", "EX-wsh"),
             SoLine("BBD-BRK-4002", "후방 브레이크 패드", 10, "SET", "BR-pad"),
-        )),
+        ), receivedBy = "정민수"),
         SalesOrder("SO-2026-0036", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-18", time = "10:42", lines = listOf(
             SoLine("BBD-FLT-2002", "오일필터 HD-O2", 25, "EA", "EN-fil"),
-        )),
+        ), receivedBy = "정민수"),
         SalesOrder("SO-2026-0030", "RECEIVED", "본사 중앙창고", "WH-HQ-001", date = "2026-05-15", time = "15:30", lines = listOf(
             SoLine("BBD-OIL-1006", "엔진오일 5W-30 1L", 48, "EA", "OIL-btl"),
-        )),
+        ), receivedBy = "정민수"),
     )
 
-    /**
-     * 부품 상세 '최근 입고' — StockMovement 조회 API 미제공이라 합성 금지.
-     * 내가 도착 확인한 RECEIVED 발주에서 해당 SKU가 든 '도착 입고' 행만 파생.
-     */
-    fun receivedInForSku(sku: String, source: List<SalesOrder> = RECEIVED): List<RecentReceive> =
-        source.mapNotNull { so ->
-            so.lines.firstOrNull { it.sku == sku }?.let { l ->
-                RecentReceive(so.so, l.qty, l.unit, so.date, so.time)
-            }
-        }
+    // ────────── 지점 이동요청 이력 — 진행 중/종료 상태 예시(백오더·반려·취소). ──────────
+    // 도착대기(INBOUND)·입고완료(RECEIVED)와 합쳐 '지점 전체 이력'을 구성. to_warehouse_code=WH-BR-001.
+    val HISTORY_EXTRA: List<SalesOrder> = listOf(
+        SalesOrder("SO-2026-0063", "BACKORDERED", "본사 중앙창고", "WH-HQ-001", "WH-BR-001", date = "2026-06-19", time = "10:05", lines = listOf(
+            SoLine("BBD-BRK-4001", "전방 브레이크 패드", 20, "SET", "BR-pad"),
+            SoLine("BBD-FLT-2001", "에어필터 HD-A1", 30, "EA", "EN-air"),
+        ), requestedBy = "이상철"),
+        SalesOrder("SO-2026-0060", "REJECTED", "본사 중앙창고", "WH-HQ-001", "WH-BR-001", date = "2026-06-17", time = "16:40", lines = listOf(
+            SoLine("BBD-ELE-7002", "배터리 60AH", 8, "EA", "EL-bat"),
+        ), requestedBy = "정민수"),
+        SalesOrder("SO-2026-0052", "CANCELED", "본사 중앙창고", "WH-HQ-001", "WH-BR-001", date = "2026-06-12", time = "11:20", lines = listOf(
+            SoLine("BBD-EXT-8005", "워셔액 2L", 40, "EA", "EX-wsh"),
+        ), requestedBy = "이상철", canceledBy = "이상철"),
+    )
+
+    // ────────── 지점 알림함(GET /notifications, targetRole=지점 창고명) — 미읽음 2 + 읽음 2. ──────────
+    // 도착 대기/보충 도착 계열(지점 inbox 1종). soNumber 로 도착 대기 큐 점프.
+    val NOTIFICATIONS: List<NotificationDto> = listOf(
+        NotificationDto(101, "강남 1지점 창고", "SO-2026-0061", "출고요청 SO-2026-0061 본사 출고 — 도착 대기(입고 진행)", read = false, createdAt = "2026-06-20T08:32:00"),
+        NotificationDto(100, "강남 1지점 창고", "SO-2026-0063", "출고요청 SO-2026-0063 일부 품목 재고 부족 — 본사 백오더 처리 중", read = false, createdAt = "2026-06-19T16:48:00"),
+        NotificationDto(98, "강남 1지점 창고", "SO-2026-0058", "출고요청 SO-2026-0058 본사 출고 — 도착 대기(입고 진행)", read = true, createdAt = "2026-06-19T11:20:00"),
+        NotificationDto(95, "강남 1지점 창고", "SO-2026-0054", "출고요청 SO-2026-0054 입고 완료 처리됨", read = true, createdAt = "2026-05-22T09:15:00"),
+    )
 
     fun partBySku(sku: String): Part? =
         PARTS.find { it.sku.equals(sku, ignoreCase = true) }

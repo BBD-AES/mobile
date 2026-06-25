@@ -46,6 +46,22 @@ class InventoryRepository(
         }
 
     /**
+     * 단일 SKU 를 내 창고 재고에서 해석(출고 스캔 수동/스캔 입력 — 시드 카탈로그 대체).
+     * stocks?warehouseCode&sku 1건 → Part(현재고를 가용으로). 미보유면 null(미등록/재고없음).
+     */
+    suspend fun resolvePart(warehouseCode: String, sku: String): UiState<Part?> =
+        withContext(Dispatchers.IO) {
+            try {
+                val dto = api.stocks(warehouseCode = warehouseCode, sku = sku.trim(), size = 1).content.firstOrNull()
+                UiState.Success(dto?.toPart())
+            } catch (c: CancellationException) {
+                throw c
+            } catch (e: Exception) {
+                UiState.Error(e.message ?: "네트워크 오류")
+            }
+        }
+
+    /**
      * 출고(지점 재고 차감, 단일 라인). 성공이면 차감 후 서버 가용재고를 재조회해 함께 반환,
      * 409 면 서버가 보고한 현재 가용재고를 함께 반환(README '가용 N으로 수량 조정' 안내용).
      * unitPrice 는 모바일에 가격 데이터가 없어 0(원장 평가액 N/A, 차감만 의미).

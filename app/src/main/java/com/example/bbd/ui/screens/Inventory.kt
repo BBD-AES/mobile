@@ -83,19 +83,20 @@ private fun InventoryBody(
     apiMode: Boolean,
 ) {
     var q by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf(initialFilter ?: "all") } // all/부족/없음/정상/카테고리
+    // 상태(정상/부족/없음)와 카테고리를 독립 필터로 분리(AND 결합). 홈 딥링크 initialFilter 는 상태값이라 statusFilter 로.
+    var statusFilter by remember { mutableStateOf(if (initialFilter in listOf("부족", "없음", "정상")) initialFilter!! else "all") }
+    var catFilter by remember { mutableStateOf("all") }
     var sel by remember { mutableStateOf<Part?>(null) }
 
     val list = parts.filter { p ->
         (q.isBlank() || p.name.contains(q) || p.sku.contains(q, ignoreCase = true)) &&
-            (filter == "all" ||
-                (filter in listOf("부족", "없음", "정상")) && p.status.label == filter ||
-                (filter !in listOf("부족", "없음", "정상")) && p.cat == filter)
+            (statusFilter == "all" || p.status.label == statusFilter) &&
+            (catFilter == "all" || p.cat == catFilter)
     }.sortedBy { sevOf(it) }
 
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
-            Header(title = "재고 조회", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
+            Header(title = "재고 조회", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             ) {
@@ -114,45 +115,28 @@ private fun InventoryBody(
                         }
                         CodeText((meLoc.branchCode.ifBlank { meLoc.warehouse }), size = 12.5.sp, color = T.ink3Read)
                     }
-                    if (apiMode) {
-                        Row(
-                            Modifier.clip(RoundedCornerShape(999.dp)).background(T.lineSoft).padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        ) {
-                            BbdIcon("refresh", 12.dp, T.ink3Read, sw = 2f)
-                            Text("DTO 보강 대기", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
-                        }
-                    } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            SummaryPill(T.amberSoft, T.amberInk, T.amber, "부족 ${summary.short}")
-                            SummaryPill(T.redSoft, T.red, T.red, "없음 ${summary.none}")
-                        }
+                    // 부족·없음 요약 — 안전재고가 목록 DTO 에 포함돼(시드·API parity) 양 모드 동일 표시.
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        SummaryPill(T.amberSoft, T.amberInk, T.amber, "부족 ${summary.short}")
+                        SummaryPill(T.redSoft, T.red, T.red, "없음 ${summary.none}")
                     }
                 }
                 Spacer(Modifier.size(12.dp))
-
-                // API 모드: DTO 보강 대기 안내(Gap 1)
-                if (apiMode) {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.amberSoft).border(1.dp, T.amberBlockBorder, RoundedCornerShape(13.dp)).padding(horizontal = 15.dp, vertical = 13.dp),
-                        horizontalArrangement = Arrangement.spacedBy(11.dp),
-                    ) {
-                        BbdIcon("info", 18.dp, T.amber, sw = 2f)
-                        Text("재고 목록 DTO 보강 대기(Gap 1). 현재고만 표시되며 안전재고·가용재고·상태는 보강 후 표시됩니다.", fontSize = 12.5.sp, color = T.ink2, lineHeight = 18.sp)
-                    }
-                    Spacer(Modifier.size(12.dp))
-                }
 
                 // 검색 — 조회 맥락: 스캔은 부품을 찾아 상세를 엽니다(입고 쓰기 흐름 점프 금지).
                 InventorySearch(q, { q = it }) { sel = Seed.partBySku("BBD-OIL-1006") }
                 Spacer(Modifier.size(12.dp))
 
-                // 필터 칩 — 가로 스크롤. 선택 칩 = blueSoft/#c9d6f7/blueInk.
-                FilterChips(filter, { filter = it }, parts, summary, categories, apiMode)
+                // 필터 — 상태(정상/부족/없음)와 카테고리를 분리한 2단 칩. 각 줄 단일선택, 둘은 AND.
+                FilterChips(statusFilter, { statusFilter = it }, catFilter, { catFilter = it }, parts, summary, categories, apiMode)
                 Spacer(Modifier.size(14.dp))
 
-                if (filter != "all") {
-                    Text("'$filter' 필터 · ${list.size}건 · 심각도순", fontSize = 12.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+                val activeLabel = listOfNotNull(
+                    statusFilter.takeIf { it != "all" },
+                    catFilter.takeIf { it != "all" },
+                ).joinToString(" · ")
+                if (activeLabel.isNotEmpty()) {
+                    Text("$activeLabel · ${list.size}건 · 심각도순", fontSize = 12.sp, color = T.ink3Read, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
                 }
 
                 if (list.isEmpty()) {
@@ -208,18 +192,26 @@ private fun InventorySearch(value: String, onValue: (String) -> Unit, onScan: ()
 }
 
 @Composable
-private fun FilterChips(filter: String, onPick: (String) -> Unit, parts: List<Part>, summary: InvSummary, categories: List<String>, apiMode: Boolean) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        // 전체/카테고리 카운트는 실데이터(parts·summary)에서 — API 모드도 시드(Seed.PARTS)가 아니라 fetch 결과 기준.
-        FilterChip("전체", filter == "all", count = summary.total) { onPick("all") }
-        if (!apiMode) {
-            FilterChip("정상", filter == "정상", count = summary.ok, icon = "check", iconColor = T.green) { onPick("정상") }
-            FilterChip("부족", filter == "부족", count = summary.short, icon = "alert", iconColor = T.amber) { onPick("부족") }
-            FilterChip("없음", filter == "없음", count = summary.none, icon = "ban", iconColor = T.red) { onPick("없음") }
+private fun FilterChips(
+    status: String, onStatus: (String) -> Unit,
+    cat: String, onCat: (String) -> Unit,
+    parts: List<Part>, summary: InvSummary, categories: List<String>, apiMode: Boolean,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        // 상태 필터 — 안전재고 기반(정상/부족/없음). 안전재고가 목록 DTO 에 포함돼 시드·API 동일(클라 필터=곧 '안전재고 미만' 뷰).
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            FilterChip("전체", status == "all", count = summary.total) { onStatus("all") }
+            FilterChip("정상", status == "정상", count = summary.ok, icon = "check", iconColor = T.green) { onStatus("정상") }
+            FilterChip("부족", status == "부족", count = summary.short, icon = "alert", iconColor = T.amber) { onStatus("부족") }
+            FilterChip("없음", status == "없음", count = summary.none, icon = "ban", iconColor = T.red) { onStatus("없음") }
         }
-        categories.forEach { c ->
-            val n = if (apiMode) parts.count { it.cat == c } else null
-            FilterChip(c, filter == c, count = n) { onPick(c) }
+        // 카테고리 필터 — 별도 줄.
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            FilterChip("전체", cat == "all", count = if (apiMode) summary.total else null) { onCat("all") }
+            categories.forEach { c ->
+                val n = if (apiMode) parts.count { it.cat == c } else null
+                FilterChip(c, cat == c, count = n) { onCat(c) }
+            }
         }
     }
 }
@@ -241,7 +233,7 @@ private fun FilterChip(label: String, on: Boolean, count: Int? = null, icon: Str
 
 @Composable
 private fun PartRow(p: Part, apiMode: Boolean, onClick: () -> Unit) {
-    val urgent = !apiMode && (p.status == StockStatus.NONE || p.status == StockStatus.SHORT)
+    val urgent = p.status == StockStatus.NONE || p.status == StockStatus.SHORT
     val accent = if (p.status == StockStatus.NONE) T.red else T.amber
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(T.card).border(1.dp, T.line, RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(14.dp),
@@ -263,17 +255,11 @@ private fun PartRow(p: Part, apiMode: Boolean, onClick: () -> Unit) {
             }
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text("${p.qty}", fontFamily = Mono, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = if (!apiMode && p.status == StockStatus.NONE) T.red else T.ink)
+                    Text("${p.qty}", fontFamily = Mono, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = if (p.status == StockStatus.NONE) T.red else T.ink)
                     Text(" ${p.unit}", fontSize = 11.sp, color = T.ink3Read, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.size(7.dp))
-                if (apiMode) {
-                    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(T.lineSoft).padding(horizontal = 9.dp, vertical = 3.dp)) {
-                        Text("안전재고 —", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
-                    }
-                } else {
-                    StatusPill(p.status)
-                }
+                StatusPill(p.status)
             }
         }
     }
@@ -285,8 +271,8 @@ private fun PartRow(p: Part, apiMode: Boolean, onClick: () -> Unit) {
 private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
     val me = LocalMe.current
     val app = LocalAppData.current
-    val ins = Seed.receivedInForSku(p.sku, app.received).take(5)
-    val hasLink = app.inbound.any { so -> so.lines.any { it.sku == p.sku } }
+    // 이 부품이 든 도착 예정(IN_FULFILLMENT, 이동 중) 발주 — 운영자에게 '곧 들어올 양'을 보여준다.
+    val incoming = app.inbound.mapNotNull { so -> so.lines.firstOrNull { it.sku == p.sku }?.let { so to it } }.take(3)
 
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 26.dp)) {
         // 부품 헤더
@@ -340,33 +326,30 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
         }
         Spacer(Modifier.size(18.dp))
 
-        // 최근 입고 (RECEIVED 파생)
-        if (ins.isNotEmpty()) {
-            Text("최근 입고", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2)
+        // 도착 예정 (IN_FULFILLMENT 파생) — 이 부품이 든 이동 중 발주. ETA/지연 표기 금지(중립 '이동 중'만).
+        if (incoming.isNotEmpty()) {
+            Text("도착 예정", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2)
             Spacer(Modifier.size(2.dp))
             Column(Modifier.fillMaxWidth()) {
-                ins.forEachIndexed { i, m ->
+                incoming.forEachIndexed { i, (so, line) ->
                     Row(
-                        Modifier.fillMaxWidth().then(if (i < ins.lastIndex) Modifier.bottomBorder(T.lineSoft) else Modifier).padding(vertical = 11.dp),
+                        Modifier.fillMaxWidth().then(if (i < incoming.lastIndex) Modifier.bottomBorder(T.lineSoft) else Modifier).padding(vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Box(Modifier.size(34.dp).clip(CircleShape).background(T.blueSoft), contentAlignment = Alignment.Center) {
-                            BbdIcon("arrowDn", 16.dp, T.blue, sw = 2.1f)
+                            BbdIcon("truck", 17.dp, T.blue, sw = 2f)
                         }
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("도착 입고 · ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink)
-                                CodeText(m.so, size = 12.5.sp)
+                                Text("이동 중 · ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink)
+                                CodeText(so.so, size = 12.5.sp)
                             }
                             Spacer(Modifier.size(1.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("${com.example.bbd.data.relDay(m.date)} · ", fontSize = 11.5.sp, color = T.ink3Read)
-                                CodeText(m.time, size = 11.5.sp, color = T.ink3Read)
-                            }
+                            Text("${so.fromWh}에서 출고", fontSize = 11.5.sp, color = T.ink3Read)
                         }
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text("+${m.qty}", fontFamily = Mono, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
-                            Text(m.unit, fontSize = 11.sp, color = T.ink3Read, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp))
+                            Text("${line.qty}", fontFamily = Mono, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = T.blue)
+                            Text(line.unit, fontSize = 11.sp, color = T.ink3Read, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp))
                         }
                     }
                 }
@@ -374,51 +357,8 @@ private fun PartSheetContent(p: Part, nav: Nav, onClose: () -> Unit) {
             Spacer(Modifier.size(18.dp))
         }
 
-        // 입고 스캔 — 도착 대기 발주 있으면 활성, 없으면 역할별 다음 경로(dead-end 금지).
-        if (hasLink) {
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(T.blue)
-                    .clickable {
-                        onClose()
-                        val so = app.inbound.first { soo -> soo.lines.any { it.sku == p.sku } }
-                        nav.pushPreset("scan-in", so)
-                    }.padding(vertical = 15.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BbdIcon("scan", 19.dp, Color.White, sw = 2f)
-                    Text("이 부품 입고 스캔", color = Color.White, fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            }
-        } else {
-            Column(Modifier.fillMaxWidth().bbdCard().background(Color(0xFFFAFBFE)).padding(horizontal = 16.dp, vertical = 15.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                    BbdIcon("info", 19.dp, T.ink3Read)
-                    Text("이 부품이 포함된 도착 대기 발주가 없어 입고 스캔을 시작할 수 없습니다.", fontSize = 12.5.sp, color = T.ink2, lineHeight = 18.sp)
-                }
-                Spacer(Modifier.size(13.dp))
-                if (me.role == "BRANCH_MANAGER") {
-                    Box(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card).border(1.5.dp, T.line, RoundedCornerShape(13.dp))
-                            .clickable { onClose(); nav.openQueue() }.padding(vertical = 14.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            BbdIcon("doc", 17.dp, T.ink2)
-                            Text("발주 요청은 웹 ERP에서", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink)
-                        }
-                    }
-                } else {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(T.card).border(1.dp, T.line, RoundedCornerShape(11.dp)).padding(horizontal = 13.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp),
-                    ) {
-                        BbdIcon("user", 16.dp, T.ink3Read)
-                        Text("발주가 필요하면 점장에게 요청하세요.", fontSize = 12.5.sp, color = T.ink2)
-                    }
-                }
-            }
-        }
+        // (입고는 SO 전량 일괄 모델 — 부품 단위 입고 스캔 없음. 입고는 도착 대기 큐/입고 스캔 탭에서.
+        //  부품 상세는 정보(재고 + 도착 예정) + '이 품목 출고'만 둔다.)
     }
 }
 
@@ -448,7 +388,7 @@ private fun InventoryScreenApi(nav: Nav, contentPad: PaddingValues, initialFilte
         )
         else -> Box(Modifier.fillMaxSize().padding(contentPad)) {
             Column(Modifier.fillMaxSize().background(T.bg)) {
-                Header(title = "재고 조회", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
+                Header(title = "재고 조회", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
                 Column(
                     Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
                 ) {
@@ -469,7 +409,7 @@ private fun InventoryScreenApi(nav: Nav, contentPad: PaddingValues, initialFilte
 private fun InventoryTenancyPending(nav: Nav, contentPad: PaddingValues) {
     Box(Modifier.fillMaxSize().padding(contentPad)) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
-            Header(title = "재고 조회", back = true, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
+            Header(title = "재고 조회", back = false, right = HeaderRight.QUEUE, queueCount = nav.queueCount, onBack = { nav.tab("home") }, onRight = nav.openQueue)
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             ) {
