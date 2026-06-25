@@ -7,8 +7,9 @@ plugins {
 
 // API 연동 설정 — gradle property 로 주입(공개 레포라 host 하드코딩 회피).
 // BASE_URL = 게이트웨이 루트(서비스 prefix sales/·inventory/ 는 각 Api 경로에 포함).
+// 기본값 = 운영 게이트웨이(공개 도메인, Keycloak 이슈어와 동일 호스트군). 로컬/에뮬레이터는 -PBBD_BASE_URL 로 오버라이드.
 // 예: ./gradlew assembleDebug -PBBD_BASE_URL="http://10.0.2.2:8080/" -PBBD_USE_API=true
-val bbdBaseUrl = (project.findProperty("BBD_BASE_URL") as? String) ?: "http://10.0.2.2:8080/"
+val bbdBaseUrl = (project.findProperty("BBD_BASE_URL") as? String) ?: "https://bbd.inwoohub.com/"
 // USE_API 는 boolean BuildConfig 필드 → 반드시 "true"/"false" 리터럴로 정규화(임의 문자열 codegen 깨짐 방지).
 val bbdUseApi = ((project.findProperty("BBD_USE_API") as? String)?.toBoolean() ?: false).toString()
 
@@ -60,7 +61,7 @@ android {
     }
 
     // 데모(시드)↔라이브(실 게이트웨이) 토글 — AS 'Build Variants' 드롭다운에서 demoDebug↔liveDebug 선택만(파일 수정 불필요).
-    // demo = USE_API false(번들 시드 카탈로그). live = USE_API true(BASE_URL/AUTH 는 BBD_* 프로퍼티, 기본 10.0.2.2).
+    // demo = USE_API false(번들 시드 카탈로그). live = USE_API true(BASE_URL/AUTH 는 BBD_* 프로퍼티, 기본 운영 도메인 https://bbd.inwoohub.com/).
     flavorDimensions += "backend"
     productFlavors {
         create("demo") {
