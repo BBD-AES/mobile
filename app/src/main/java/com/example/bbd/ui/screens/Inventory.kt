@@ -43,6 +43,7 @@ import com.example.bbd.data.Seed
 import com.example.bbd.data.StockStatus
 import com.example.bbd.data.remote.UiState
 import com.example.bbd.data.repo.InventoryRepository
+import com.example.bbd.data.repo.ItemRepository
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
@@ -96,6 +97,7 @@ private fun InventoryBody(
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val scanRepo = remember { InventoryRepository() }
+    val scanItemRepo = remember { ItemRepository() }
     val meWh = LocalMe.current.warehouse
     // 부품 바코드 스캔 → 해석되면 상세 열기, 미해석이면 '미등록' 토스트. API=실 재고(resolvePart), 시드=카탈로그.
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
@@ -104,7 +106,12 @@ private fun InventoryBody(
             scope.launch {
                 val p = (scanRepo.resolvePart(meWh, code) as? UiState.Success)?.data
                 if (p != null) sel = p
-                else android.widget.Toast.makeText(ctx, "미등록 부품: $code", android.widget.Toast.LENGTH_SHORT).show()
+                else {
+                    // 내 창고 재고엔 없음 — 품목 마스터를 확인해 '미등록'(카탈로그에 없음)과 '이 창고에 재고 없음'(타 창고엔 있을 수 있음)을 구분.
+                    val inMaster = (scanItemRepo.resolve(code) as? UiState.Success)?.data != null
+                    val msg = if (inMaster) "이 창고에 재고가 없는 부품입니다 ($code)" else "미등록 부품입니다 ($code)"
+                    android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         } else {
             val p = Seed.partBySku(code)
