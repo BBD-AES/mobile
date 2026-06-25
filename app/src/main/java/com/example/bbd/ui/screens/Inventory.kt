@@ -157,7 +157,7 @@ private fun InventoryBody(
 
                 // 검색 — 조회 맥락: 스캔은 부품을 찾아 상세를 엽니다(입고 쓰기 흐름 점프 금지).
                 InventorySearch(q, { q = it }) {
-                    scanLauncher.launch(ScanOptions().apply { setPrompt("부품 바코드를 맞춰 주세요"); setBeepEnabled(true); setOrientationLocked(false) })
+                    scanLauncher.launch(ScanOptions().apply { setPrompt("부품 바코드를 맞춰 주세요"); setBeepEnabled(true); setOrientationLocked(true) })
                 }
                 Spacer(Modifier.size(12.dp))
 

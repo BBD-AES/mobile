@@ -103,7 +103,6 @@ fun ScanOutScreen(nav: Nav, preset: Part? = null) {
     var manualOpen by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
     var mErr by remember { mutableStateOf(false) }
-    var flashOn by remember { mutableStateOf(false) }
     // API 모드: 부품 해석을 실 재고(stocks?sku)로 — 시드 카탈로그 대체. 미보유면 미등록.
     val me = com.example.bbd.ui.LocalMe.current
     val resolveScope = rememberCoroutineScope()
@@ -123,10 +122,14 @@ fun ScanOutScreen(nav: Nav, preset: Part? = null) {
         }
     }
 
+    val scanCtx = androidx.compose.ui.platform.LocalContext.current
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         val scanned = result.contents?.trim()?.uppercase()
         if (scanned != null) {
-            if (com.example.bbd.BuildConfig.USE_API) {
+            if (scanned.startsWith("SO")) {
+                // 출고는 부품 바코드 전용 — SO QR(입고용)이면 '존재하지 않는 부품' 대신 명확히 안내(입고와 대칭).
+                android.widget.Toast.makeText(scanCtx, "출고는 부품 바코드를 스캔하세요 — SO QR은 입고에서 사용합니다.", android.widget.Toast.LENGTH_LONG).show()
+            } else if (com.example.bbd.BuildConfig.USE_API) {
                 resolving = true
                 resolveScope.launch {
                     val p = (resolveRepo.resolvePart(me.warehouse, scanned) as? UiState.Success)?.data
@@ -160,11 +163,6 @@ fun ScanOutScreen(nav: Nav, preset: Part? = null) {
                         Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFFF5B5B)))
                         Text("SCAN · OUT", fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f), letterSpacing = 1.sp)
                     }
-                    Box(Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp).size(44.dp).clickable { flashOn = !flashOn }, contentAlignment = Alignment.Center) {
-                        Box(Modifier.size(34.dp).clip(CircleShape).background(if (flashOn) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                            BbdIcon("flash", 17.dp, if (flashOn) Color(0xFF1A1D24) else Color.White)
-                        }
-                    }
                     OutViewfinder(Modifier.align(Alignment.Center), pending?.sku.takeIf { recognizing })
                     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(if (recognizing) "부품을 확인하고 있어요…" else "꺼내 쓸 부품의 바코드를 맞춰 주세요", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.82f))
@@ -175,7 +173,7 @@ fun ScanOutScreen(nav: Nav, preset: Part? = null) {
                                     scanLauncher.launch(ScanOptions().apply {
                                         setPrompt("꺼내 쓸 부품의 바코드를 맞춰 주세요")
                                         setBeepEnabled(true)
-                                        setOrientationLocked(false)
+                                        setOrientationLocked(true)
                                     })
                                 }.padding(vertical = 13.dp),
                             contentAlignment = Alignment.Center,
