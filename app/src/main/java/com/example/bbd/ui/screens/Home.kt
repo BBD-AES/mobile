@@ -213,8 +213,9 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                 app.markNotifRead(id)
                 if (com.example.bbd.BuildConfig.USE_API && id != null) scope.launch { notifRepo.markRead(id) }
             },
-            // 도착 대기(IN_FULFILLMENT, 큐에 있는) SO 만 큐로 점프 — 백오더/입고완료는 없는 큐로 보내지 않음.
-            onOpenSo = { so -> if (app.inbound.any { it.so == so }) { notifOpen = false; nav.openQueue() } },
+            // 알림의 연계 SO 탭 → 도착 대기 큐 열기(큐가 열릴 때 실 도착목록을 갱신 → 최신/누락 없음).
+            // 시드 전용 app.inbound 의존 제거 — API 모드에서 빈 리스트라 이동이 막히던 회귀 수정.
+            onOpenSo = { _ -> notifOpen = false; nav.openQueue() },
             onClose = { notifOpen = false },
         )
     }
