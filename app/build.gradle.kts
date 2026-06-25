@@ -7,9 +7,12 @@ plugins {
 
 // API 연동 설정 — gradle property 로 주입(공개 레포라 host 하드코딩 회피).
 // BASE_URL = 게이트웨이 루트(서비스 prefix sales/·inventory/ 는 각 Api 경로에 포함).
-// 기본값 = 운영 게이트웨이(공개 도메인, Keycloak 이슈어와 동일 호스트군). 로컬/에뮬레이터는 -PBBD_BASE_URL 로 오버라이드.
-// 예: ./gradlew assembleDebug -PBBD_BASE_URL="http://10.0.2.2:8080/" -PBBD_USE_API=true
+// ★ live(운영) 플레이버는 BBD_LIVE_BASE_URL(기본 운영 도메인)만 본다 — IDE Run·기본 빌드(-P 없음)가
+//   ~/.gradle 의 BBD_BASE_URL(개발 Tailscale IP 등)에 오염돼 실기기에서 로그인 불가가 되는 함정을 차단.
+//   live 를 굳이 dev 게이트웨이로 빌드하려면 -PBBD_LIVE_BASE_URL=http://… 로 명시 오버라이드.
+// BBD_BASE_URL 은 defaultConfig(=USE_API false 인 demo/기본 빌드)용 — demo 는 네트워크 미사용이라 무해.
 val bbdBaseUrl = (project.findProperty("BBD_BASE_URL") as? String) ?: "https://bbd.inwoohub.com/"
+val liveBaseUrl = (project.findProperty("BBD_LIVE_BASE_URL") as? String) ?: "https://bbd.inwoohub.com/"
 // USE_API 는 boolean BuildConfig 필드 → 반드시 "true"/"false" 리터럴로 정규화(임의 문자열 codegen 깨짐 방지).
 val bbdUseApi = ((project.findProperty("BBD_USE_API") as? String)?.toBoolean() ?: false).toString()
 
@@ -61,7 +64,7 @@ android {
     }
 
     // 데모(시드)↔라이브(실 게이트웨이) 토글 — AS 'Build Variants' 드롭다운에서 demoDebug↔liveDebug 선택만(파일 수정 불필요).
-    // demo = USE_API false(번들 시드 카탈로그). live = USE_API true(BASE_URL/AUTH 는 BBD_* 프로퍼티, 기본 운영 도메인 https://bbd.inwoohub.com/).
+    // demo = USE_API false(번들 시드 카탈로그). live = USE_API true + BASE_URL 운영 고정(liveBaseUrl, 기본 https://bbd.inwoohub.com/).
     flavorDimensions += "backend"
     productFlavors {
         create("demo") {
@@ -71,6 +74,8 @@ android {
         create("live") {
             dimension = "backend"
             buildConfigField("boolean", "USE_API", "true")
+            // ★운영 URL 고정 — defaultConfig 의 BBD_BASE_URL(~/.gradle 오염 가능)을 덮어써 기본/IDE Run 이 항상 운영을 향하게.
+            buildConfigField("String", "BASE_URL", "\"$liveBaseUrl\"")
         }
     }
     compileOptions {
