@@ -85,13 +85,13 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
             notifLoading = false
         }
     }
-    // 실시간 근사 — 무음 폴링(2s). 로딩/클리어 토글 없이 목록만 교체해 벨 카운트가 깜빡임 없이 자동 갱신된다.
+    // 실시간 근사 — 무음 폴링(15s). 로딩/클리어 토글 없이 목록만 교체해 벨 카운트가 깜빡임 없이 자동 갱신된다.
     // (submitted→점장 알람 증가 / stock-replenished 입고를 포그라운드 유지 중에도 반영. 프로덕션 푸시(FCM/SSE)는 후속.)
-    // NOTE: 2s 는 데모용 near-real-time. 운영 배포 시 배터리/네트워크 고려해 15~30s 로 상향 또는 FCM/SSE 전환 권장.
+    // 15s = 반응성(분당 4회)과 배터리/네트워크 균형. 진짜 실시간이 필요하면 FCM/SSE 로 전환.
     if (com.example.bbd.BuildConfig.USE_API) {
         LaunchedEffect(Unit) {
             while (isActive) {
-                delay(2_000)
+                delay(15_000)
                 when (val r = notifRepo.inbox()) {
                     is UiState.Success -> app.loadNotifications(r.data)
                     else -> {}
