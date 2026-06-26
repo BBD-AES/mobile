@@ -1,6 +1,7 @@
 package com.example.bbd.data.remote
 
 import com.example.bbd.data.remote.dto.ItemDto
+import com.google.gson.JsonElement
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -23,5 +24,5 @@ interface ItemApi {
         @Query("size") size: Int = 10,
         @Query("active") active: Boolean = true,
         @Query("sourcingType") sourcingType: String? = null,
-    ): List<ItemDto>
+    ): JsonElement
 }

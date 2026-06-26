@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -28,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +63,7 @@ fun BoxScope.SheetHost(
         .shadow(20.dp, SheetShape, clip = false)
         .clip(SheetShape)
         .background(T.card)
+        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
 
     AnimatedVisibility(open, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(T.scrim).clickable(interactionSource = null, indication = null, onClick = onClose))

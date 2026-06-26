@@ -4,6 +4,10 @@ import com.example.bbd.data.remote.ItemApi
 import com.example.bbd.data.remote.Net
 import com.example.bbd.data.remote.UiState
 import com.example.bbd.data.remote.dto.ItemDto
+import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,6 +16,9 @@ import kotlinx.coroutines.withContext
 class ItemRepository(
     private val api: ItemApi = Net.create(ItemApi::class.java),
 ) {
+    private val gson = Gson()
+    private val itemListType = object : TypeToken<List<ItemDto>>() {}.type
+
     /** SKU 해석. 미존재(404)=Success(null), 그 외 오류=Error. */
     suspend fun resolve(code: String): UiState<ItemDto?> =
         withContext(Dispatchers.IO) {
@@ -35,11 +42,29 @@ class ItemRepository(
             try {
                 val q = keyword.trim()
                 if (q.length < 2) return@withContext UiState.Success(emptyList())
-                UiState.Success(api.autocomplete(q, size, active = true, sourcingType = sourcingType))
+                UiState.Success(parseAutocomplete(api.autocomplete(q, size, active = true, sourcingType = sourcingType)))
             } catch (c: CancellationException) {
                 throw c
             } catch (e: Exception) {
                 UiState.Error(e.message ?: "네트워크 오류")
             }
         }
+
+    private fun parseAutocomplete(json: JsonElement): List<ItemDto> {
+        val array = findItemArray(json) ?: return emptyList()
+        return gson.fromJson(array, itemListType)
+    }
+
+    private fun findItemArray(json: JsonElement?): JsonArray? {
+        if (json == null || json.isJsonNull) return null
+        if (json.isJsonArray) return json.asJsonArray
+        if (!json.isJsonObject) return null
+
+        val obj = json.asJsonObject
+        listOf("content", "items", "data", "users").forEach { key ->
+            val child = obj.get(key) ?: return@forEach
+            findItemArray(child)?.let { return it }
+        }
+        return null
+    }
 }

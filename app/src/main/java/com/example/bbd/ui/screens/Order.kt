@@ -318,7 +318,7 @@ private fun PartPickList(apiMode: Boolean, selected: List<String>, onPick: (Stri
             if (keyword.length >= 2) {
                 apiPhase = 1
                 delay(300)
-                when (val r = itemRepo.autocomplete(keyword, size = 10)) {
+                when (val r = itemRepo.autocomplete(keyword, size = 5)) {
                     is UiState.Success -> { apiItems = r.data.filter { !it.sku.isNullOrBlank() }; apiPhase = if (apiItems.isEmpty()) 2 else 0 }
                     else -> apiPhase = 3
                 }
