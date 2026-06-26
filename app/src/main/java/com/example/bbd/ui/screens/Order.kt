@@ -109,7 +109,7 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
     val idemKey = remember { java.util.UUID.randomUUID().toString() }
 
     val totalQty = lines.sumOf { it.second }
-    val canSubmit = lines.isNotEmpty() && !submitting
+    val canSubmit = customer.isNotBlank() && lines.isNotEmpty() && !submitting // 고객명 필수(생성 후 수정 불가 → 임의 기본값 채우기 대신 작성 시 입력 강제)
 
     fun addLine(sku: String, name: String? = null) {
         val cleanSku = sku.trim()
@@ -161,8 +161,8 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
         Column(Modifier.fillMaxSize().background(T.bg)) {
             Header(title = "현장 수주 등록", back = true, onBack = { nav.pop() })
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 20.dp)) {
-                // 고객·작업 (선택)
-                Row { Text("고객 · 작업 ", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink); Text("(선택)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = T.ink3) }
+                // 고객·작업 (필수) — 임의 기본값(현장 즉시판매) 채우기 제거, 생성 후 고객명 수정 불가라 작성 시 필수 입력
+                Row { Text("고객 · 작업 ", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink); Text("*", fontSize = 14.sp, color = T.blue) }
                 Spacer(Modifier.size(9.dp))
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card).border(1.5.dp, T.line, RoundedCornerShape(13.dp)).padding(horizontal = 15.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     BbdIcon("user", 19.dp, T.ink3)
@@ -236,11 +236,17 @@ fun OrderCreateScreen(nav: Nav, preset: Part? = null) {
             }
 
             StickyBar {
-                if (lines.isEmpty()) {
+                val submitHint = when {
+                    customer.isBlank() && lines.isEmpty() -> "고객명과 부품을 입력하세요"
+                    customer.isBlank() -> "고객명(또는 작업번호)을 입력하세요"
+                    lines.isEmpty() -> "부품을 1개 이상 추가하세요"
+                    else -> null
+                }
+                if (submitHint != null) {
                     Row(Modifier.fillMaxWidth().padding(bottom = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         BbdIcon("alert", 15.dp, T.amber, sw = 2f)
                         Spacer(Modifier.size(6.dp))
-                        Text("부품을 1개 이상 추가하세요", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T.amberInk)
+                        Text(submitHint, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = T.amberInk)
                     }
                 }
                 Box(

@@ -173,8 +173,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
         // 로그아웃 확인 모달
         ModalHost(confirmOut, { confirmOut = false }) {
             Column(Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 26.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(50.dp).clip(CircleShape).background(T.redSoft), contentAlignment = Alignment.Center) { BbdIcon("logout", 24.dp, T.red, sw = 2f) }
-                Spacer(Modifier.size(14.dp))
                 Text("로그아웃 할까요?", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
                 Spacer(Modifier.size(6.dp))
                 Text("다시 사용하려면 사번으로 로그인해야 합니다.", fontSize = 13.5.sp, color = T.ink2)

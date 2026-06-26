@@ -24,7 +24,7 @@ import java.util.UUID
  * 현장 수주(CustomerOrder) 데이터 소스 — sales 서비스. 생성/조회/확정/종료.
  *
  * 시연 흐름: 등록(OPEN) → 확정(CONFIRMED) → 종료(CLOSED=지점재고 차감). 부분출고 없음(전 라인 전량).
- * - customerName 은 백엔드 @NotBlank → 공백이면 [DEFAULT_CUSTOMER] 로 치환(README: 고객명 선택 입력).
+ * - customerName 은 백엔드 @NotBlank·필수. UI(현장수주)가 필수 입력을 강제하므로 임의 기본값 치환 안 함(생성 후 고객명 수정 불가).
  * - 멱등: 생성/종료 모두 Idempotency-Key=클라 생성 UUID(1요청 1키, 재시도는 동일키 재전송). coNumber 는 키 아님.
  * - 비-2xx 는 예외가 아니라 결과 타입으로 분기(401=세션만료 / 409=상태·재고 / IOException=오프라인).
  */
@@ -43,7 +43,7 @@ class CustomerOrderRepository(
         try {
             val req = CreateCustomerOrderRequest(
                 dealerWarehouseCode = dealerWarehouseCode,
-                customerName = customerName.ifBlank { DEFAULT_CUSTOMER },
+                customerName = customerName.trim(),
                 customerContact = customerContact?.ifBlank { null },
                 note = note?.ifBlank { null },
                 lines = lines,
@@ -212,7 +212,6 @@ class CustomerOrderRepository(
     private data class ProblemDetailDto(val title: String? = null, val detail: String? = null)
 
     private companion object {
-        const val DEFAULT_CUSTOMER = "현장 즉시판매"
         const val PAGE_SIZE = 100
         const val MAX_PAGES = 20
     }
