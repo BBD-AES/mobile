@@ -94,6 +94,31 @@ object AuthManager {
         }
     }
 
+    /** 현재 모바일 OIDC client 로 Keycloak 비밀번호 변경 required-action 을 연다. */
+    fun beginPasswordChange(onReady: (Intent?) -> Unit) {
+        fun buildIntent(config: AuthorizationServiceConfiguration) {
+            val req = AuthorizationRequest.Builder(
+                config,
+                BuildConfig.AUTH_CLIENT_ID,
+                ResponseTypeValues.CODE,
+                Uri.parse(BuildConfig.AUTH_REDIRECT),
+            )
+                .setScope(BuildConfig.AUTH_SCOPES)
+                .setAdditionalParameters(mapOf("kc_action" to "UPDATE_PASSWORD"))
+                .build()
+            onReady(service.getAuthorizationRequestIntent(req))
+        }
+
+        serviceConfig?.let { buildIntent(it); return }
+        AuthorizationServiceConfiguration.fetchFromIssuer(Uri.parse(BuildConfig.AUTH_ISSUER)) { config, _ ->
+            if (config == null) onReady(null)
+            else {
+                serviceConfig = config
+                buildIntent(config)
+            }
+        }
+    }
+
     /** 리다이렉트 결과 처리 → 토큰 교환 → [Net.bearer] 주입. onResult(성공, 에러메시지?). */
     fun handleResult(data: Intent?, onResult: (Boolean, String?) -> Unit) {
         if (data == null) { onResult(false, "로그인이 취소되었어요."); return }
