@@ -171,7 +171,7 @@ private fun ScanOrderScreen(nav: Nav, app: AppData, onResolved: (SalesOrder) -> 
                     Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(T.blueSoft), contentAlignment = Alignment.Center) {
                         BbdIcon("truck", 19.dp, T.blue, sw = 1.9f)
                     }
-                    Text("QR을 스캔하면 해당 재고이동요청을 찾아 전량 입고 확정합니다. PATCH /sales-orders/{so}/receive", fontSize = 13.sp, color = T.ink2, lineHeight = 20.sp)
+                    Text("QR을 스캔하면 해당 재고이동요청을 찾아 전량 입고 확정합니다.", fontSize = 13.sp, color = T.ink2, lineHeight = 20.sp)
                 }
                 Spacer(Modifier.size(12.dp))
 
