@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bbd.auth.AuthManager
 import com.example.bbd.data.SalesOrder
-import com.example.bbd.data.Seed
 import com.example.bbd.data.daysSince
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.CodeText
@@ -47,16 +46,13 @@ import com.example.bbd.ui.Nav
 import com.example.bbd.ui.SoDetailSheet
 import com.example.bbd.ui.ToastHost
 import com.example.bbd.ui.bbdCard
-import com.example.bbd.ui.bottomBorder
 import com.example.bbd.ui.topBorder
-import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
 
 @Composable
 fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val me = LocalMe.current
-    val perm = Seed.ROLE_PERMS[me.role] ?: Seed.ROLE_PERMS.getValue("BRANCH_STAFF")
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
     var confirmOut by remember { mutableStateOf(false) }
     var pwInfo by remember { mutableStateOf(false) }
@@ -105,32 +101,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                         }
                         Spacer(Modifier.weight(1f))
                         Text("정보 수정은 관리자 문의", fontSize = 12.sp, color = T.ink3Read)
-                    }
-                }
-                Spacer(Modifier.size(16.dp))
-
-                // 이용 권한
-                Column(Modifier.fillMaxWidth().bbdCard().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("이용 권한", fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
-                        Box(Modifier.clip(RoundedCornerShape(6.dp)).background(T.blueSoft).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                            Text(me.role, fontFamily = Mono, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = T.blueInk)
-                        }
-                    }
-                    Spacer(Modifier.size(12.dp))
-                    perm.can.forEach { PermRow("check", T.green, T.greenSoft, it, T.ink) }
-                    if (perm.web.isNotEmpty()) {
-                        Spacer(Modifier.size(4.dp))
-                        Box(Modifier.fillMaxWidth().bottomBorder(T.lineSoft))
-                        Spacer(Modifier.size(11.dp))
-                        Text("웹 ERP에서 가능", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T.ink3Read, modifier = Modifier.padding(bottom = 9.dp))
-                        perm.web.forEach { WebPermRow(it) }
-                    }
-                    if (perm.cant.isNotEmpty()) {
-                        Spacer(Modifier.size(4.dp))
-                        Box(Modifier.fillMaxWidth().bottomBorder(T.lineSoft))
-                        Spacer(Modifier.size(11.dp))
-                        perm.cant.forEach { PermRow("ban", T.ink3Read, T.lineSoft, it, T.ink3Read) }
                     }
                 }
                 Spacer(Modifier.size(16.dp))
@@ -214,25 +184,6 @@ private fun SettingRow(icon: String, title: String, sub: String, subAmber: Boole
             Text(sub, fontSize = 12.5.sp, color = if (subAmber) T.amberInk else T.ink3Read, fontWeight = if (subAmber) FontWeight.SemiBold else FontWeight.Normal)
         }
         right()
-    }
-}
-
-@Composable
-private fun PermRow(icon: String, iconColor: Color, iconBg: Color, label: String, textColor: Color) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(20.dp).clip(CircleShape).background(iconBg), contentAlignment = Alignment.Center) { BbdIcon(icon, 12.dp, iconColor, sw = 2.6f) }
-        Text(label, fontSize = 13.5.sp, color = textColor)
-    }
-}
-
-@Composable
-private fun WebPermRow(label: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(20.dp).clip(CircleShape).background(Color(0xFFF2F5FB)), contentAlignment = Alignment.Center) { BbdIcon("doc", 12.dp, T.ink3Read, sw = 2f) }
-        Text(label, fontSize = 13.5.sp, color = T.ink2, modifier = Modifier.weight(1f))
-        Box(Modifier.clip(RoundedCornerShape(6.dp)).background(T.lineSoft).padding(horizontal = 7.dp, vertical = 2.dp)) {
-            Text("웹", fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink3Read)
-        }
     }
 }
 
