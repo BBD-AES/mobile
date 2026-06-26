@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.ui.BbdIcon
-import com.example.bbd.ui.InlineNote
 import com.example.bbd.ui.LocalMe
 import com.example.bbd.ui.SheetHost
 import com.example.bbd.ui.SoRow
@@ -69,13 +68,6 @@ fun BoxScope.ArrivalQueueSheet(
                 }
             }
             Spacer(Modifier.size(14.dp))
-            InlineNote {
-                Text(
-                    "내 창고로 이동 중인 입고 목록입니다. 도착·배송 예정 시각은 현재 제공되지 않으며, 푸시 알림은 지점 알림함 연동 후 제공됩니다.",
-                    fontSize = 12.5.sp, color = T.ink2, lineHeight = 19.sp,
-                )
-            }
-            Spacer(Modifier.size(8.dp))
         }
     }
 }

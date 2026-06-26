@@ -368,11 +368,6 @@ private fun ReceiveOrderForm(nav: Nav, so: SalesOrder, onBack: () -> Unit) {
                 }
                 Spacer(Modifier.size(14.dp))
 
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFAFBFE)).border(1.dp, T.line, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    BbdIcon("info", 16.dp, T.ink3Read)
-                    Text("이동요청 단위로 입고됩니다. 라인별 부분 수령은 백엔드 미지원(전량 확정).", fontSize = 12.sp, color = T.ink2, lineHeight = 18.sp)
-                }
-
                 error?.let { e ->
                     Spacer(Modifier.size(12.dp))
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(T.redSoft).padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
