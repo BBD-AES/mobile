@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.bbd.data.relDay
 import com.example.bbd.data.remote.CloseOrderResult
 import com.example.bbd.data.remote.ConfirmOrderResult
 import com.example.bbd.data.remote.UiState
@@ -171,6 +172,8 @@ fun BoxScope.CoDetailSheet(
                 is UiState.Success -> {
                     val co = s.data
                     val totalQty = co.lines.sumOf { it.quantity }
+                    val processedAt = co.processedAt()
+                    val actor = co.actorForStatus()
                     if (editing) {
                         CoEditPanel(
                             note = editNote,
@@ -225,7 +228,7 @@ fun BoxScope.CoDetailSheet(
                         CodeText(co.coNumber ?: "-", size = 15.sp, color = T.ink)
                         CoBadge(co.status)
                     }
-                    Spacer(Modifier.size(12.dp))
+                    Spacer(Modifier.size(14.dp))
                     // 고객 + 메모
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0xFFF7F9FC))
@@ -235,13 +238,34 @@ fun BoxScope.CoDetailSheet(
                         BbdIcon("user", 18.dp, T.ink2)
                         Column(Modifier.weight(1f)) {
                             Text(co.customerName?.takeIf { it.isNotBlank() } ?: "현장 판매", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = T.ink)
-                            val note = co.note
-                            if (!note.isNullOrBlank()) {
-                                Spacer(Modifier.size(2.dp)); Text(note, fontSize = 12.sp, color = T.ink3Read, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            val contact = co.customerContact
+                            if (!contact.isNullOrBlank()) {
+                                Spacer(Modifier.size(2.dp)); Text(contact, fontFamily = Mono, fontSize = 12.sp, color = T.ink3Read, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
-                    Spacer(Modifier.size(16.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        buildString {
+                            append(co.statusLabel())
+                            if (processedAt.isNotBlank()) append(" · $processedAt")
+                            if (actor != null) append(" · ${actor.second}")
+                        },
+                        fontFamily = Mono, fontSize = 12.5.sp, color = T.ink3Read,
+                    )
+                    Spacer(Modifier.size(18.dp))
+
+                    Column(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 14.dp, vertical = 12.dp)) {
+                        CoDetailInfoRow("상태", co.statusLabel())
+                        actor?.let { CoDetailInfoRow(it.first, it.second) }
+                        if (processedAt.isNotBlank()) CoDetailInfoRow("처리시각", processedAt)
+                        co.dealerWarehouseCode?.takeIf { it.isNotBlank() }?.let { CoDetailInfoRow("지점창고", it, mono = true) }
+                        co.customerContact?.takeIf { it.isNotBlank() }?.let { CoDetailInfoRow("연락처", it, mono = true) }
+                        co.totalAmount?.takeIf { it > 0.0 }?.let { CoDetailInfoRow("금액", formatWon(it), mono = true) }
+                        co.note?.takeIf { it.isNotBlank() }?.let { CoDetailInfoRow("메모", it) }
+                    }
+                    Spacer(Modifier.size(18.dp))
+
                     Row(Modifier.fillMaxWidth()) {
                         Text("차감 품목", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2, modifier = Modifier.weight(1f))
                         Text("${co.lines.size}건", fontFamily = Mono, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
@@ -254,6 +278,13 @@ fun BoxScope.CoDetailSheet(
                     Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
                         Text("총 차감 수량", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink2, modifier = Modifier.weight(1f))
                         Text("$totalQty", fontFamily = Mono, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
+                    }
+                    co.totalAmount?.takeIf { it > 0.0 }?.let {
+                        Spacer(Modifier.size(6.dp))
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
+                            Text("총 금액", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = T.ink2, modifier = Modifier.weight(1f))
+                            Text(formatWon(it), fontFamily = Mono, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
+                        }
                     }
                     Spacer(Modifier.size(18.dp))
 
@@ -538,6 +569,8 @@ private fun CoStep(icon: String, enabled: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun CoLineRow(l: CustomerOrderLineDto, last: Boolean) {
+    val unitPrice = l.unitPriceSnapshot
+    val amount = unitPrice?.let { it * l.quantity }
     Row(
         Modifier.fillMaxWidth().then(if (!last) Modifier.bottomBorder(T.lineSoft) else Modifier).padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -545,11 +578,76 @@ private fun CoLineRow(l: CustomerOrderLineDto, last: Boolean) {
         PartThumb("box", size = 42.dp)
         Column(Modifier.weight(1f)) {
             Text(l.nameSnapshot?.takeIf { it.isNotBlank() } ?: (l.sku ?: "-"), fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = T.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            CodeText(l.sku ?: "-", size = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                CodeText(l.sku ?: "-", size = 12.sp)
+                unitPrice?.takeIf { it > 0.0 }?.let {
+                    Text(formatWon(it), fontFamily = Mono, fontSize = 11.sp, color = T.ink3Read, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            amount?.takeIf { it > 0.0 }?.let {
+                Spacer(Modifier.size(2.dp))
+                Text(formatWon(it), fontFamily = Mono, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = T.ink2)
+            }
         }
         Text("−${l.quantity}", fontFamily = Mono, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = T.amberInk)
     }
 }
+
+@Composable
+private fun CoDetailInfoRow(label: String, value: String, mono: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T.ink3Read, modifier = Modifier.width(72.dp))
+        if (mono) CodeText(value, size = 12.5.sp, color = T.ink)
+        else Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = T.ink, modifier = Modifier.weight(1f))
+    }
+}
+
+private fun CustomerOrderDetailDto.statusLabel(): String =
+    when (status) {
+        "OPEN" -> "등록"
+        "CONFIRMED" -> "확정"
+        "CLOSED" -> "종료"
+        "CANCELED" -> "취소"
+        else -> status ?: "-"
+    }
+
+private fun CustomerOrderDetailDto.actorForStatus(): Pair<String, String>? =
+    when (status) {
+        "OPEN" -> requestedBy.takeIf { !it.isNullOrBlank() }?.let { "등록자" to it }
+        "CONFIRMED" -> confirmedBy.takeIf { !it.isNullOrBlank() }?.let { "확정자" to it }
+        "CLOSED" -> closedBy.takeIf { !it.isNullOrBlank() }?.let { "종료자" to it }
+        "CANCELED" -> canceledBy.takeIf { !it.isNullOrBlank() }?.let { "취소자" to it }
+        else -> listOfNotNull(closedBy, confirmedBy, requestedBy, canceledBy).firstOrNull { it.isNotBlank() }?.let { "처리자" to it }
+    }
+
+private fun CustomerOrderDetailDto.processedAt(): String {
+    val raw = when (status) {
+        "OPEN" -> requestedAt
+        "CONFIRMED" -> confirmedAt
+        "CLOSED" -> closedAt
+        "CANCELED" -> canceledAt
+        else -> requestedAt ?: confirmedAt ?: closedAt ?: canceledAt
+    } ?: return ""
+    return formatCoDateTime(raw)
+}
+
+private fun formatCoDateTime(raw: String): String {
+    val local = runCatching { java.time.LocalDateTime.parse(raw) }.getOrNull()
+    if (local != null) {
+        return listOf(relDay(local.toLocalDate().toString()), "%02d:%02d".format(local.hour, local.minute))
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+    }
+    val zoned = runCatching { java.time.Instant.parse(raw).atZone(java.time.ZoneId.of("Asia/Seoul")) }
+        .recoverCatching { java.time.OffsetDateTime.parse(raw).atZoneSameInstant(java.time.ZoneId.of("Asia/Seoul")) }
+        .getOrNull() ?: return raw.take(16).replace("T", " ")
+    return listOf(relDay(zoned.toLocalDate().toString()), "%02d:%02d".format(zoned.hour, zoned.minute))
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+}
+
+private fun formatWon(value: Double): String =
+    "%,.0f원".format(value)
 
 @Composable
 private fun CoFooter(icon: String, tint: Color, label: String, actor: String?, at: String?) {

@@ -60,14 +60,15 @@ class SalesOrderRepository(
             "SUBMITTED", "APPROVED", "IN_FULFILLMENT", "BACKORDERED" -> d.approvedAt ?: d.requestedAt
             else -> d.requestedAt ?: d.receivedAt ?: d.approvedAt ?: d.canceledAt
         }.orEmpty()
+        val displayAt = displayDateTime(at)
         SalesOrder(
             so = d.soNumber ?: soNumber,
             status = d.status ?: "IN_FULFILLMENT",
             // SO 상세 DTO엔 출처 창고가 없음 — 보충 SO 의 표준 출처(본사 중앙창고)로 표시. 목적지는 폼에서 me.warehouseName.
             fromWh = "본사 중앙창고",
             toCode = d.toWarehouseCode ?: "",
-            date = at.take(10),
-            time = at.drop(11).take(5),
+            date = displayAt?.first.orEmpty(),
+            time = displayAt?.second.orEmpty(),
             lines = d.lines.map { l ->
                 SoLine(
                     sku = l.sku ?: "",
@@ -78,8 +79,22 @@ class SalesOrderRepository(
                 )
             },
             requestedBy = d.requestedBy ?: "",
+            approvedBy = d.approvedBy ?: "",
             receivedBy = d.receivedBy ?: "",
+            canceledBy = d.canceledBy ?: "",
+            note = d.note ?: "",
+            customerOrderNumber = d.customerOrderNumber ?: "",
         )
+    }
+
+    private fun displayDateTime(raw: String): Pair<String, String>? {
+        if (raw.isBlank()) return null
+        val seoul = java.time.ZoneId.of("Asia/Seoul")
+        val zoned = runCatching { java.time.Instant.parse(raw).atZone(seoul) }
+            .recoverCatching { java.time.OffsetDateTime.parse(raw).atZoneSameInstant(seoul) }
+            .recoverCatching { java.time.LocalDateTime.parse(raw).atZone(seoul) }
+            .getOrNull() ?: return null
+        return zoned.toLocalDate().toString() to "%02d:%02d".format(zoned.hour, zoned.minute)
     }
 
     /** 페이지를 끝까지 모아 전체 반환(size 100, 최대 20페이지=2000건 안전캡 — 무한루프 방지). */

@@ -170,6 +170,7 @@ fun BoxScope.SoDetailSheet(so: SalesOrder?, meName: String, meWarehouseName: Str
             val confirmedAt = listOf(relDay(so.date).takeIf { so.date.isNotBlank() }, so.time.takeIf { so.time.isNotBlank() })
                 .filterNotNull()
                 .joinToString(" ")
+            val actor = so.actorForStatus()
             Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 26.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CodeText(so.so, size = 15.sp, color = T.ink)
@@ -193,11 +194,21 @@ fun BoxScope.SoDetailSheet(so: SalesOrder?, meName: String, meWarehouseName: Str
                     buildString {
                         append(SoStatusMeta.of(so.status)?.label ?: so.status)
                         if (confirmedAt.isNotBlank()) append(" · $confirmedAt")
-                        if (meName.isNotBlank()) append(" · $meName")
+                        if (actor != null) append(" · ${actor.second}")
                     },
                     fontFamily = Mono, fontSize = 12.5.sp, color = T.ink3Read,
                 )
                 Spacer(Modifier.size(18.dp))
+
+                Column(Modifier.fillMaxWidth().bbdCard().padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    DetailInfoRow("상태", SoStatusMeta.of(so.status)?.label ?: so.status)
+                    actor?.let { DetailInfoRow(it.first, it.second) }
+                    if (confirmedAt.isNotBlank()) DetailInfoRow("처리시각", confirmedAt)
+                    if (so.customerOrderNumber.isNotBlank()) DetailInfoRow("연계 수주", so.customerOrderNumber, mono = true)
+                    if (so.note.isNotBlank()) DetailInfoRow("메모", so.note)
+                }
+                Spacer(Modifier.size(18.dp))
+
                 Row(Modifier.fillMaxWidth()) {
                     Text("품목", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2, modifier = Modifier.weight(1f))
                     Text("${tot.items}건", fontFamily = Mono, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = T.ink3Read)
@@ -228,5 +239,23 @@ fun BoxScope.SoDetailSheet(so: SalesOrder?, meName: String, meWarehouseName: Str
                 }
             }
         }
+    }
+}
+
+private fun SalesOrder.actorForStatus(): Pair<String, String>? =
+    when (status) {
+        "RECEIVED" -> receivedBy.takeIf { it.isNotBlank() }?.let { "입고자" to it }
+        "CANCELED", "REJECTED" -> canceledBy.takeIf { it.isNotBlank() }?.let { "처리자" to it }
+        "IN_FULFILLMENT", "BACKORDERED" -> approvedBy.takeIf { it.isNotBlank() }?.let { "승인자" to it }
+        "SUBMITTED", "REQUESTED" -> requestedBy.takeIf { it.isNotBlank() }?.let { "요청자" to it }
+        else -> listOf(approvedBy, receivedBy, requestedBy, canceledBy).firstOrNull { it.isNotBlank() }?.let { "처리자" to it }
+    }
+
+@Composable
+private fun DetailInfoRow(label: String, value: String, mono: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = T.ink3Read, modifier = Modifier.width(72.dp))
+        if (mono) CodeText(value, size = 12.5.sp, color = T.ink)
+        else Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = T.ink, modifier = Modifier.weight(1f))
     }
 }

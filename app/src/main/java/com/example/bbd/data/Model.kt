@@ -52,8 +52,11 @@ data class SalesOrder(
     val lines: List<SoLine>,
     // 책임 추적(지점 이동요청 이력) — 표시는 사번 아닌 이름. 없으면 빈값.
     val requestedBy: String = "",
+    val approvedBy: String = "",
     val receivedBy: String = "",
     val canceledBy: String = "",
+    val note: String = "",
+    val customerOrderNumber: String = "",
 )
 
 /** SO 한 건의 합계(품목 수 · 총 수량 · 단일 라인이면 단위). */
