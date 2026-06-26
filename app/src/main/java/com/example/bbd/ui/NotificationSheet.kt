@@ -62,7 +62,7 @@ fun BoxScope.NotificationSheet(
                 items.forEachIndexed { i, n ->
                     NotificationRow(n, divider = i < items.lastIndex) {
                         onMarkRead(n.id)
-                        n.soNumber?.takeIf { it.isNotBlank() }?.let { onOpenSo(it) }
+                        n.linkedSoNumber()?.let { onOpenSo(it) }
                     }
                 }
             }
@@ -73,6 +73,8 @@ fun BoxScope.NotificationSheet(
 @Composable
 private fun NotificationRow(n: NotificationDto, divider: Boolean, onClick: () -> Unit) {
     val unread = !n.read
+    val message = n.message?.replace("출고요청", "재고이동요청") ?: "-"
+    val soNumber = n.linkedSoNumber()
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick)
             .then(if (divider) Modifier.bottomBorder(T.lineSoft) else Modifier)
@@ -83,7 +85,7 @@ private fun NotificationRow(n: NotificationDto, divider: Boolean, onClick: () ->
         Box(Modifier.padding(top = 5.dp).size(8.dp).clip(CircleShape).background(if (unread) T.blue else Color.Transparent))
         Column(Modifier.weight(1f)) {
             Text(
-                n.message ?: "-",
+                message,
                 fontSize = 13.5.sp,
                 fontWeight = if (unread) FontWeight.Bold else FontWeight.Medium,
                 color = if (unread) T.ink else T.ink3Read,
@@ -91,15 +93,19 @@ private fun NotificationRow(n: NotificationDto, divider: Boolean, onClick: () ->
             )
             Spacer(Modifier.size(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val so = n.soNumber
+                val so = soNumber
                 if (!so.isNullOrBlank()) CodeText(so, size = 11.5.sp, color = T.ink3Read)
                 val dt = kstDayTime(n.createdAt)
                 if (dt != null) Text("${relDay(dt.first)} · ${dt.second}", fontSize = 11.sp, color = T.ink3Read)
             }
         }
-        if (!n.soNumber.isNullOrBlank()) BbdIcon("chevR", 16.dp, T.ink3Read, sw = 2f)
+        if (!soNumber.isNullOrBlank()) BbdIcon("chevR", 16.dp, T.ink3Read, sw = 2f)
     }
 }
+
+private fun NotificationDto.linkedSoNumber(): String? =
+    soNumber?.takeIf { it.isNotBlank() }
+        ?: Regex("""SO-\d{4}-\d+""").find(message.orEmpty())?.value
 
 /**
  * createdAt(서버=UTC ISO 'Z' / 시드=오프셋 없는 로컬형)을 KST 로 환산해 (yyyy-MM-dd, HH:mm) 반환.

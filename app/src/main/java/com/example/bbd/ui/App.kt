@@ -121,21 +121,24 @@ fun BbdApp() {
 
     val scope = rememberCoroutineScope()
 
-    // 도착 대기 — API 모드는 sales arrivals(status=IN_FULFILLMENT, 내 창고) 로드(로그인·큐 열 때 갱신).
-    // 시드 모드는 app.inbound. (요약 DTO엔 라인/출처 없음 → 큐 행은 SO·상태·이동중만, 라인 상세는 후속.)
+    // 도착 대기 — API 모드는 목록 요약을 받은 뒤 상세를 조회해 라인(품목·수량)을 보강한다.
+    // 요약 DTO 에 라인이 없어 그대로 그리면 큐 행이 "0품목"으로 보이기 때문이다.
     val salesRepo = remember { SalesOrderRepository() }
     var apiArrivals by remember { mutableStateOf<List<SalesOrder>>(emptyList()) }
     LaunchedEffect(me.warehouse, queueOpen) {
         if (com.example.bbd.BuildConfig.USE_API && me.warehouse.isNotBlank()) {
             (salesRepo.arrivals(me.warehouse) as? UiState.Success)?.let { res ->
                 apiArrivals = res.data.map { d ->
-                    SalesOrder(
+                    val soNumber = d.soNumber ?: ""
+                    val fallback = SalesOrder(
                         so = d.soNumber ?: "",
                         status = d.status ?: "IN_FULFILLMENT",
                         fromWh = "",
                         toCode = d.toWarehouseCode ?: "",
                         lines = emptyList(),
                     )
+                    if (soNumber.isBlank()) fallback
+                    else (salesRepo.detail(soNumber) as? UiState.Success)?.data ?: fallback
                 }
             }
         }

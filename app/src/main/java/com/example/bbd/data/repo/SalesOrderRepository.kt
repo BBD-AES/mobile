@@ -54,13 +54,20 @@ class SalesOrderRepository(
     /** SO 상세 → 모바일 SalesOrder(라인 포함) 매핑. 입고 확정 폼 품목 표시(요약 DTO엔 라인 없음). */
     suspend fun detail(soNumber: String): UiState<SalesOrder> = call {
         val d = api.salesOrder(soNumber)
+        val at = when (d.status) {
+            "RECEIVED" -> d.receivedAt
+            "CANCELED", "REJECTED" -> d.canceledAt
+            "SUBMITTED", "APPROVED", "IN_FULFILLMENT", "BACKORDERED" -> d.approvedAt ?: d.requestedAt
+            else -> d.requestedAt ?: d.receivedAt ?: d.approvedAt ?: d.canceledAt
+        }.orEmpty()
         SalesOrder(
             so = d.soNumber ?: soNumber,
             status = d.status ?: "IN_FULFILLMENT",
             // SO 상세 DTO엔 출처 창고가 없음 — 보충 SO 의 표준 출처(본사 중앙창고)로 표시. 목적지는 폼에서 me.warehouseName.
             fromWh = "본사 중앙창고",
             toCode = d.toWarehouseCode ?: "",
-            date = (d.receivedAt ?: "").take(10),
+            date = at.take(10),
+            time = at.drop(11).take(5),
             lines = d.lines.map { l ->
                 SoLine(
                     sku = l.sku ?: "",

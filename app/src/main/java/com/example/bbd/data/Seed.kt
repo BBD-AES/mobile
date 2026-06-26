@@ -140,10 +140,10 @@ object Seed {
     // ────────── 지점 알림함(GET /notifications, targetRole=지점 창고명) — 미읽음 2 + 읽음 2. ──────────
     // 도착 대기/보충 도착 계열(지점 inbox 1종). soNumber 로 도착 대기 큐 점프.
     val NOTIFICATIONS: List<NotificationDto> = listOf(
-        NotificationDto(101, "강남 1지점 창고", "SO-2026-0061", "출고요청 SO-2026-0061 본사 출고 — 도착 대기(입고 진행)", read = false, createdAt = "2026-06-20T08:32:00"),
-        NotificationDto(100, "강남 1지점 창고", "SO-2026-0063", "출고요청 SO-2026-0063 일부 품목 재고 부족 — 본사 백오더 처리 중", read = false, createdAt = "2026-06-19T16:48:00"),
-        NotificationDto(98, "강남 1지점 창고", "SO-2026-0058", "출고요청 SO-2026-0058 본사 출고 — 도착 대기(입고 진행)", read = true, createdAt = "2026-06-19T11:20:00"),
-        NotificationDto(95, "강남 1지점 창고", "SO-2026-0054", "출고요청 SO-2026-0054 입고 완료 처리됨", read = true, createdAt = "2026-05-22T09:15:00"),
+        NotificationDto(101, "강남 1지점 창고", "SO-2026-0061", "재고이동요청 SO-2026-0061 본사 출고 — 도착 대기(입고 진행)", read = false, createdAt = "2026-06-20T08:32:00"),
+        NotificationDto(100, "강남 1지점 창고", "SO-2026-0063", "재고이동요청 SO-2026-0063 일부 품목 재고 부족 — 본사 백오더 처리 중", read = false, createdAt = "2026-06-19T16:48:00"),
+        NotificationDto(98, "강남 1지점 창고", "SO-2026-0058", "재고이동요청 SO-2026-0058 본사 출고 — 도착 대기(입고 진행)", read = true, createdAt = "2026-06-19T11:20:00"),
+        NotificationDto(95, "강남 1지점 창고", "SO-2026-0054", "재고이동요청 SO-2026-0054 입고 완료 처리됨", read = true, createdAt = "2026-05-22T09:15:00"),
     )
 
     fun partBySku(sku: String): Part? =

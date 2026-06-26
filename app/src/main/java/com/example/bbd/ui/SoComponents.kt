@@ -161,12 +161,15 @@ fun InlineNote(icon: String = "info", content: @Composable () -> Unit) {
     }
 }
 
-/** 입고 상세 바텀시트 — RECEIVED 발주의 라인/경로/합계. */
+/** 재고이동요청 상세 바텀시트 — 상태 무관 SO 라인/경로/합계. */
 @Composable
 fun BoxScope.SoDetailSheet(so: SalesOrder?, meName: String, meWarehouseName: String, onClose: () -> Unit) {
-    SheetHost(open = so != null, onClose = onClose, title = "입고 상세") {
+    SheetHost(open = so != null, onClose = onClose, title = "재고이동요청 상세") {
         if (so != null) {
             val tot = so.totals()
+            val confirmedAt = listOf(relDay(so.date).takeIf { so.date.isNotBlank() }, so.time.takeIf { so.time.isNotBlank() })
+                .filterNotNull()
+                .joinToString(" ")
             Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 26.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CodeText(so.so, size = 15.sp, color = T.ink)
@@ -186,7 +189,14 @@ fun BoxScope.SoDetailSheet(so: SalesOrder?, meName: String, meWarehouseName: Str
                     }
                 }
                 Spacer(Modifier.size(8.dp))
-                Text("도착 확인 · ${relDay(so.date)} ${so.time} · $meName", fontFamily = Mono, fontSize = 12.5.sp, color = T.ink3Read)
+                Text(
+                    buildString {
+                        append(SoStatusMeta.of(so.status)?.label ?: so.status)
+                        if (confirmedAt.isNotBlank()) append(" · $confirmedAt")
+                        if (meName.isNotBlank()) append(" · $meName")
+                    },
+                    fontFamily = Mono, fontSize = 12.5.sp, color = T.ink3Read,
+                )
                 Spacer(Modifier.size(18.dp))
                 Row(Modifier.fillMaxWidth()) {
                     Text("품목", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = T.ink2, modifier = Modifier.weight(1f))

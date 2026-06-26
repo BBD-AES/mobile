@@ -42,6 +42,7 @@ import com.example.bbd.data.Seed
 import com.example.bbd.data.remote.UiState
 import com.example.bbd.data.repo.InventoryRepository
 import com.example.bbd.data.repo.NotificationRepository
+import com.example.bbd.data.repo.SalesOrderRepository
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.BellBtn
 import com.example.bbd.ui.LocalAppData
@@ -72,6 +73,7 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     var notifReload by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     val notifRepo = remember { NotificationRepository() }
+    val soRepo = remember { SalesOrderRepository() }
     // API 모드: 지점 알림 로드(로딩/에러 추적, 재시도=notifReload). 시드 모드는 Seed.NOTIFICATIONS(빌더 주입) 유지.
     LaunchedEffect(notifReload) {
         if (com.example.bbd.BuildConfig.USE_API) {
@@ -213,9 +215,16 @@ fun HomeScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
                 app.markNotifRead(id)
                 if (com.example.bbd.BuildConfig.USE_API && id != null) scope.launch { notifRepo.markRead(id) }
             },
-            // 알림의 연계 SO 탭 → 도착 대기 큐 열기(큐가 열릴 때 실 도착목록을 갱신 → 최신/누락 없음).
-            // 시드 전용 app.inbound 의존 제거 — API 모드에서 빈 리스트라 이동이 막히던 회귀 수정.
-            onOpenSo = { _ -> notifOpen = false; nav.openQueue() },
+            onOpenSo = { soNumber ->
+                notifOpen = false
+                scope.launch {
+                    when (val r = soRepo.detail(soNumber)) {
+                        is UiState.Success -> sel = r.data
+                        is UiState.Error -> notifError = r.message
+                        else -> {}
+                    }
+                }
+            },
             onClose = { notifOpen = false },
         )
     }

@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +69,7 @@ import com.example.bbd.ui.theme.Mono
 import com.example.bbd.ui.theme.Pretendard
 import com.example.bbd.ui.theme.T
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // ─────────────────────────────────────────────────────────────────────────
 // 재고이동요청 이력 — "내 입고"가 아닌 지점 전체 재고이동요청(STR)을 상태 무관 전체로.
@@ -300,9 +302,11 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
     var filter by remember { mutableStateOf("ALL") }
     var coFilter by remember { mutableStateOf("ALL") }
     var period by remember { mutableStateOf("ALL") }              // 기간 프리셋(전체/오늘/7일/30일)
+    var selectedSo by remember { mutableStateOf<SalesOrder?>(null) }
     var selectedCo by remember { mutableStateOf<String?>(null) }
     var toastMsg by remember { mutableStateOf("") }
     var toastKind by remember { mutableStateOf(ToastKind.OK) }
+    val scope = rememberCoroutineScope()
     if (toastMsg.isNotBlank()) LaunchedEffect(toastMsg) { delay(2600); toastMsg = "" }
     val (psd, ped) = periodRange(period)                          // start_date/end_date (yyyy-MM-dd) or null
 
@@ -347,7 +351,21 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
                         if (list.isEmpty()) {
                             Text("'${bucket.label}' 상태의 재고이동요청이 없습니다.", fontSize = 13.sp, color = T.ink3Read, modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { HistoryApiRow(it) } }
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                list.forEach { so ->
+                                    HistoryApiRow(so, selected = selectedSo?.so == so.soNumber) {
+                                        val soNumber = so.soNumber
+                                        if (soNumber.isNullOrBlank()) return@HistoryApiRow
+                                        scope.launch {
+                                            when (val r = repo.detail(soNumber)) {
+                                                is UiState.Success -> selectedSo = r.data
+                                                is UiState.Error -> { toastMsg = r.message; toastKind = ToastKind.ERR }
+                                                else -> {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 } else {
@@ -369,6 +387,7 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
                 }
             }
         }
+        SoDetailSheet(selectedSo, me.name, me.warehouseName, onClose = { selectedSo = null })
         CoDetailSheet(
             coNumber = selectedCo,
             repo = coRepo,
@@ -381,13 +400,15 @@ private fun WorklogScreenApi(nav: Nav, contentPad: PaddingValues) {
 }
 
 @Composable
-private fun HistoryApiRow(o: SalesOrderSummaryDto) {
+private fun HistoryApiRow(o: SalesOrderSummaryDto, selected: Boolean, onClick: () -> Unit) {
     val status = o.status ?: ""
     val vis = histVis(status)
     val actor = apiActor(o)
     val day = apiDay(o)
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card).border(1.dp, T.line, RoundedCornerShape(13.dp)).padding(13.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(T.card)
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) T.blue else T.line, RoundedCornerShape(13.dp))
+            .clickable(onClick = onClick).padding(13.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(Modifier.size(38.dp).clip(CircleShape).background(vis.soft), contentAlignment = Alignment.Center) {
@@ -407,7 +428,11 @@ private fun HistoryApiRow(o: SalesOrderSummaryDto) {
                 fontSize = 12.sp, color = T.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        if (day.isNotBlank()) CodeText(day, size = 11.5.sp, color = T.ink3Read)
+        Column(horizontalAlignment = Alignment.End) {
+            if (day.isNotBlank()) CodeText(day, size = 11.5.sp, color = T.ink3Read)
+            Spacer(Modifier.size(3.dp))
+            BbdIcon("chevR", 15.dp, T.ink3Read, sw = 2f)
+        }
     }
 }
 
