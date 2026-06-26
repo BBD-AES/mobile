@@ -33,12 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bbd.data.SalesOrder
 import com.example.bbd.data.Seed
-import com.example.bbd.data.daysSince
 import com.example.bbd.ui.BbdIcon
 import com.example.bbd.ui.CodeText
 import com.example.bbd.ui.Header
 import com.example.bbd.ui.HeaderRight
-import com.example.bbd.ui.LocalAppData
 import com.example.bbd.ui.LocalMe
 import com.example.bbd.ui.ModalHost
 import com.example.bbd.ui.Nav
@@ -54,11 +52,9 @@ import com.example.bbd.ui.theme.T
 @Composable
 fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
     val me = LocalMe.current
-    val app = LocalAppData.current
     val perm = Seed.ROLE_PERMS[me.role] ?: Seed.ROLE_PERMS.getValue("BRANCH_STAFF")
     var sel by remember { mutableStateOf<SalesOrder?>(null) }
     var confirmOut by remember { mutableStateOf(false) }
-    var pwInfo by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf("") }
     if (toast.isNotBlank()) LaunchedEffect(toast) { kotlinx.coroutines.delay(2200); toast = "" }
 
@@ -131,15 +127,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
 
                 // (작업 이력은 별도 '작업이력' 탭으로 분리 — 마이에서 제거)
 
-                // 설정
-                Column(Modifier.fillMaxWidth().bbdCard()) {
-                    // 마지막 변경일 — /me 에 없음(Keycloak 소관). 값 없으면 'Keycloak에서 관리'만 표기(날조 금지).
-                    val pwDays = daysSince(me.pwChanged)
-                    val pwSub = if (pwDays != null) "마지막 변경 ${pwDays}일 전 · Keycloak에서 변경" else "Keycloak에서 관리"
-                    SettingRow("key", "비밀번호", pwSub, subAmber = pwDays != null, divider = false, right = { BbdIcon("chevR", 18.dp, T.ink3Read) }) { pwInfo = true }
-                }
-                Spacer(Modifier.size(18.dp))
-
                 // 로그아웃
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(T.card).border(1.dp, T.line, RoundedCornerShape(14.dp)).clickable { confirmOut = true }.padding(vertical = 15.dp),
@@ -151,24 +138,6 @@ fun MyScreen(nav: Nav, contentPad: PaddingValues = PaddingValues()) {
         }
 
         SoDetailSheet(sel, me.name, me.warehouseName, onClose = { sel = null })
-
-        // 비밀번호 안내 모달
-        ModalHost(pwInfo, { pwInfo = false }) {
-            Column(Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(T.blueSoft), contentAlignment = Alignment.Center) { BbdIcon("key", 22.dp, T.blue) }
-                    Text("비밀번호 변경", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = T.ink)
-                }
-                Spacer(Modifier.size(14.dp))
-                Text("비밀번호는 사내 계정 시스템(Keycloak)에서 관리됩니다. 아래 버튼을 누르면 계정 콘솔이 외부 브라우저로 열립니다.", fontSize = 13.5.sp, color = T.ink2, lineHeight = 21.sp)
-                Spacer(Modifier.size(18.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GhostBtn("닫기", Modifier.weight(1f)) { pwInfo = false }
-                    SolidBtn("계정 콘솔 열기", Modifier.weight(1f)) { pwInfo = false }
-                }
-            }
-        }
-
 
         // 로그아웃 확인 모달
         ModalHost(confirmOut, { confirmOut = false }) {
@@ -213,31 +182,8 @@ private fun WebPermRow(label: String) {
 }
 
 @Composable
-private fun SettingRow(icon: String, title: String, sub: String, subAmber: Boolean = false, divider: Boolean, right: @Composable () -> Unit, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).then(if (divider) Modifier.bottomBorder(T.lineSoft) else Modifier).padding(horizontal = 16.dp, vertical = 15.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFF2F5FB)), contentAlignment = Alignment.Center) { BbdIcon(icon, 20.dp, T.ink2) }
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = T.ink)
-            Spacer(Modifier.size(2.dp))
-            Text(sub, fontSize = 12.5.sp, color = if (subAmber) T.amberInk else T.ink3Read, fontWeight = if (subAmber) FontWeight.SemiBold else FontWeight.Normal)
-        }
-        right()
-    }
-}
-
-@Composable
 private fun GhostBtn(label: String, modifier: Modifier, onClick: () -> Unit) {
     Box(modifier.clip(RoundedCornerShape(13.dp)).background(T.card).border(1.5.dp, T.line, RoundedCornerShape(13.dp)).clickable(onClick = onClick).padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
         Text(label, color = T.ink2, fontSize = 15.5.sp, fontWeight = FontWeight.Bold, fontFamily = Pretendard)
-    }
-}
-
-@Composable
-private fun SolidBtn(label: String, modifier: Modifier, onClick: () -> Unit) {
-    Box(modifier.clip(RoundedCornerShape(13.dp)).background(T.blue).clickable(onClick = onClick).padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
-        Text(label, color = Color.White, fontSize = 15.5.sp, fontWeight = FontWeight.ExtraBold, fontFamily = Pretendard)
     }
 }

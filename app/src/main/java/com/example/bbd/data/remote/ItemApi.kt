@@ -17,6 +17,15 @@ interface ItemApi {
     @GET("item/api/v1/items/{sku}")
     suspend fun byCode(@Path("sku") sku: String): Response<ItemDto>
 
+    /** 품목 목록 — 재고 화면 안전재고 판정 보강용. */
+    @GET("item/api/v1/items/filter")
+    suspend fun filter(
+        @Query("size") size: Int = 500,
+        @Query("sortBy") sortBy: String = "name",
+        @Query("direction") direction: String = "ASC",
+        @Query("active") active: Boolean = true,
+    ): JsonElement
+
     /** OpenSearch 기반 품목 자동검색 — 현장수주 '검색으로 추가'에서 사용. */
     @GET("item/api/v1/items/search/auto")
     suspend fun autocomplete(

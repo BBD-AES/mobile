@@ -20,6 +20,7 @@ import java.io.IOException
  */
 class InventoryRepository(
     private val api: InventoryApi = Net.create(InventoryApi::class.java),
+    private val itemRepo: ItemRepository = ItemRepository(),
 ) {
 
     /** 내 지점의 재고 전체(전 페이지 수집, 20p 안전캡). */
@@ -37,7 +38,8 @@ class InventoryRepository(
                     if (resp.content.isEmpty()) break
                     page++
                 }
-                UiState.Success(all.map { it.toPart() })
+                val safetyBySku = itemSafetyBySku()
+                UiState.Success(all.map { it.toPart(safetyBySku) })
             } catch (c: CancellationException) {
                 throw c
             } catch (e: Exception) {
@@ -53,7 +55,7 @@ class InventoryRepository(
         withContext(Dispatchers.IO) {
             try {
                 val dto = api.stocks(warehouseCode = warehouseCode, sku = sku.trim(), size = 1).content.firstOrNull()
-                UiState.Success(dto?.toPart())
+                UiState.Success(dto?.toPart(itemSafetyBySku()))
             } catch (c: CancellationException) {
                 throw c
             } catch (e: Exception) {
@@ -118,17 +120,30 @@ class InventoryRepository(
             api.stocks(warehouseCode = warehouseCode, sku = sku, size = 1).content.firstOrNull()?.availableStock
         }.getOrNull()
 
-    private fun StockItemDto.toPart(): Part = Part(
-        sku = sku ?: "",
-        name = name ?: (sku ?: ""),
-        cat = category ?: "",
-        thumb = "box",
-        qty = currentStock,
-        unit = unit ?: "EA",
-        status = StockStatus.of(currentStock, safetyStock),
-        safety = safetyStock,
-        wh = warehouseCode ?: "",
-    )
+    private suspend fun itemSafetyBySku(): Map<String, Int> =
+        when (val items = itemRepo.activeItems(size = 1000)) {
+            is UiState.Success -> items.data
+                .filter { !it.sku.isNullOrBlank() }
+                .associate { it.sku.orEmpty() to (it.safetyStock ?: 0) }
+            else -> emptyMap()
+        }
+
+    private fun StockItemDto.toPart(safetyBySku: Map<String, Int> = emptyMap()): Part {
+        val cleanSku = sku ?: ""
+        val itemSafety = safetyBySku[cleanSku] ?: 0
+        val resolvedSafety = if (itemSafety > 0) itemSafety else safetyStock
+        return Part(
+            sku = cleanSku,
+            name = name ?: cleanSku,
+            cat = category ?: "",
+            thumb = "box",
+            qty = currentStock,
+            unit = unit ?: "EA",
+            status = StockStatus.of(currentStock, resolvedSafety),
+            safety = resolvedSafety,
+            wh = warehouseCode ?: "",
+        )
+    }
 
     private companion object {
         const val PAGE_SIZE = 100

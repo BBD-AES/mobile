@@ -50,7 +50,23 @@ class ItemRepository(
             }
         }
 
+    /** 활성 품목 목록. 재고 목록 DTO 의 안전재고가 비어 있을 때 대시보드와 같은 기준으로 보강한다. */
+    suspend fun activeItems(size: Int = 500): UiState<List<ItemDto>> =
+        withContext(Dispatchers.IO) {
+            try {
+                UiState.Success(parseItems(api.filter(size = size, active = true)))
+            } catch (c: CancellationException) {
+                throw c
+            } catch (e: Exception) {
+                UiState.Error(e.message ?: "네트워크 오류")
+            }
+        }
+
     private fun parseAutocomplete(json: JsonElement): List<ItemDto> {
+        return parseItems(json)
+    }
+
+    private fun parseItems(json: JsonElement): List<ItemDto> {
         val array = findItemArray(json) ?: return emptyList()
         return gson.fromJson(array, itemListType)
     }
