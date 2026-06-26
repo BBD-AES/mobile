@@ -35,7 +35,7 @@ object Net {
             // 사용자는 끊김 없이 이어진다. 무토큰/이미 재시도함/refresh 실패면 포기(401 그대로 전파 → 화면이 처리).
             .authenticator { _, response ->
                 if (bearer == null) return@authenticator null
-                // 다른 기기 로그인(게이트웨이 AUTH003) — 토큰은 유효하나 sid 로 차단됨. refresh 해도 같은 sid 라 계속 막힘
+                // 모바일 단일 기기 제한(게이트웨이 AUTH003) — 토큰은 유효하나 sid 로 차단됨. refresh 해도 같은 sid 라 계속 막힘
                 // → 재시도하지 말고 즉시 세션 종료(전역 관찰이 로그인으로 복귀).
                 if (isSessionReplaced(response)) { AuthManager.markSessionReplaced(); return@authenticator null }
                 if (responseCount(response) >= 2) return@authenticator null // 이미 1회 재시도 → 루프 방지
@@ -71,7 +71,7 @@ object Net {
         return count
     }
 
-    /** 401 본문이 게이트웨이 AUTH003(다른 기기 로그인으로 세션 교체)인지 — peekBody 로 비파괴 확인. */
+    /** 401 본문이 게이트웨이 AUTH003(모바일 단일 기기 제한)인지 — peekBody 로 비파괴 확인. */
     private fun isSessionReplaced(response: Response): Boolean {
         if (response.code != 401) return false
         return try {

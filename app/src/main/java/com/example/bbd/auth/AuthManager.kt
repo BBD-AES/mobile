@@ -22,6 +22,7 @@ import kotlin.coroutines.resume
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /** refresh 결과 — 만료(세션 정리 대상)와 네트워크 일시오류(토큰 보존·재시도)를 구분한다. */
 enum class TokenRefresh { FRESH, EXPIRED, NETWORK_ERROR }
@@ -184,6 +185,26 @@ object AuthManager {
         Unit
     }
 
+    /**
+     * Gateway 모바일 세션 슬롯 해제. Redis current sid 는 access token 의 sid 기준으로 지워지므로,
+     * 로컬 토큰 삭제/Keycloak end-session 전에 best-effort 로 호출한다.
+     */
+    suspend fun logoutGatewayMobileSession() = withContext(Dispatchers.IO) {
+        runCatching { freshToken() }
+        val token = authState.accessToken ?: Net.bearer ?: return@withContext
+        val endpoint = BuildConfig.BASE_URL.trimEnd('/') + "/api/auth/mobile/logout"
+        runCatching {
+            OkHttpClient().newCall(
+                Request.Builder()
+                    .url(endpoint)
+                    .post(ByteArray(0).toRequestBody())
+                    .header("Authorization", "Bearer $token")
+                    .build()
+            ).execute().use { /* best-effort: 실패해도 Keycloak/로컬 로그아웃은 계속 진행 */ }
+        }
+        Unit
+    }
+
     /** 로그아웃 2단계 — end-session Intent(브라우저, id_token_hint=id_token + post_logout_redirect). 없으면 null. 복귀 후 [clearLocal]. */
     fun endSessionIntent(): Intent? {
         val config = serviceConfig ?: return null
@@ -203,12 +224,12 @@ object AuthManager {
     }
 
     /**
-     * 게이트웨이 AUTH003(다른 기기에서 로그인) — 액세스 토큰은 유효하나 게이트웨이가 sid 로 차단한다.
+     * 게이트웨이 AUTH003(모바일 단일 기기 제한) — 액세스 토큰은 유효하나 게이트웨이가 sid 로 차단한다.
      * refresh 는 무의미(같은 sid 라 계속 막힘)하므로, 차단된 토큰을 버리고 전역 세션 종료 신호를 세운다.
      */
     fun markSessionReplaced() {
         Net.bearer = null
-        _sessionEnded.value = "다른 기기에서 로그인되어 자동 로그아웃되었습니다."
+        _sessionEnded.value = "이미 다른 기기에서 로그인 중입니다. 기존 기기에서 로그아웃하거나 관리자에게 문의하세요."
     }
 
     /** 세션 종료 사유 소거 — 재로그인 시도/성공 시 호출. */

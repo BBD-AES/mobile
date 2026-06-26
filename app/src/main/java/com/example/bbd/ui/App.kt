@@ -166,9 +166,11 @@ fun BbdApp() {
         login = { emp -> me = Seed.resolveUser(emp); stack = listOf(Route("home")) },
         loginAs = { user -> me = user; stack = listOf(Route("home")) },
         logout = {
-            // 4) refresh_token back-channel 무효화 → 5) 브라우저 SSO 종료(id_token_hint) → 복귀 시 토큰 삭제(런처 콜백).
+            // 4) Gateway 모바일 세션 슬롯 해제 → 5) refresh_token back-channel 무효화
+            // → 6) 브라우저 SSO 종료(id_token_hint) → 복귀 시 토큰 삭제(런처 콜백).
             // 세션 없음(시드/미로그인)이면 end-session Intent 가 null → 로컬 삭제+로그인 이동으로 폴백.
             scope.launch {
+                AuthManager.logoutGatewayMobileSession()
                 AuthManager.revokeRefreshToken()
                 val intent = AuthManager.endSessionIntent()
                 if (intent != null) endSessionLauncher.launch(intent)

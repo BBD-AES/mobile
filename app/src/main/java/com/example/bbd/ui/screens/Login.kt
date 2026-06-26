@@ -183,14 +183,16 @@ private fun OidcLoginScreen(onLoginAs: (com.example.bbd.data.CurrentUser) -> Uni
         val is401 = userCode == 401 || authCode == 401
         val notErpUser = userCode == 403 || userCode == 404 || authCode == 403 || authCode == 404 ||
             (st is UiState.Success && !st.data.authenticated)
+        val sessionEndedMessage = AuthManager.sessionEnded.value
         loading = false
         error = when {
+            sessionEndedMessage != null -> sessionEndedMessage
             is401 -> "세션이 만료되어 다시 로그인이 필요합니다."
             notErpUser -> "허용되지 않은 사용자입니다. ERP 접근 권한이 없습니다."
             else -> "사용자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
         }
         // 세션만료·미인가는 토큰 정리(자동복원 무한루프 방지). 네트워크 오류는 토큰 유지(재시도 가능).
-        if (is401 || notErpUser) AuthManager.clearLocal()
+        if (sessionEndedMessage != null || is401 || notErpUser) AuthManager.clearLocal()
     }
 
     // 시작 시 이미 인증돼 있으면(영속 토큰) 재로그인 없이 자동 복원 — 카메라/방향전환/앱 재시작으로
